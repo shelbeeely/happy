@@ -1,5 +1,5 @@
 import fs from 'fs/promises';
-import { INFERENCE_CAPABILITY, prepareSpawnInference } from '@/inference/daemonInference';
+import { INFERENCE_CAPABILITY, prepareResumeInference, prepareSpawnInference } from '@/inference/daemonInference';
 import os from 'os';
 import * as tmp from 'tmp';
 import axios from 'axios';
@@ -846,8 +846,18 @@ export async function startDaemon(): Promise<void> {
           { startedBy: 'daemon', claudeStartingMode: 'remote' },
         );
 
+        // Keep the provider the session started with (OpenRouter profile).
+        const resumeInference = (metadata.flavor ?? 'claude') === 'claude'
+          ? await prepareResumeInference(metadata.inference, ambientEnvironment)
+          : { type: 'none' as const };
+        if (resumeInference.type === 'error') {
+          return { type: 'error', errorMessage: resumeInference.errorMessage };
+        }
+
         if (options?.model) {
           launch.args.push('--model', options.model);
+        } else if (resumeInference.type === 'ok') {
+          launch.args.push('--model', resumeInference.model);
         }
         const resumePermissionMode = options?.permissionMode;
         if (shouldForwardDaemonPermissionMode(metadata.flavor ?? 'claude', resumePermissionMode)) {
@@ -874,6 +884,7 @@ export async function startDaemon(): Promise<void> {
             HAPPY_RECONNECT_SEQ: String(encryption.seq),
             HAPPY_RECONNECT_METADATA_VERSION: String(encryption.metadataVersion),
             HAPPY_RECONNECT_AGENT_STATE_VERSION: String(encryption.agentStateVersion),
+            ...(resumeInference.type === 'ok' ? resumeInference.env : {}),
           }),
         });
       } catch (error) {

@@ -20,8 +20,8 @@ import {
     testOpenRouterConnection,
 } from './openrouter';
 import { startInferenceRelay, UsageCollector, withServerTools, type RelayUsage } from './relay';
-import { prepareSpawnInference } from './daemonInference';
-import { activateSessionInference, INFERENCE_CONFIG_ENV, INFERENCE_KEY_ENV } from './sessionInference';
+import { prepareResumeInference, prepareSpawnInference } from './daemonInference';
+import { activateSessionInference, INFERENCE_CONFIG_ENV, INFERENCE_KEY_ENV, INFERENCE_PRIOR_ENV } from './sessionInference';
 
 const SECRET = 'sk-or-v1-test-secret-value-1234567890';
 
@@ -245,7 +245,7 @@ describe('relay', () => {
 
             const blocked = await send();
             expect(blocked.status).toBe(400);
-            expect((await blocked.json()).error.message).toContain('budget');
+            expect(((await blocked.json()) as { error: { message: string } }).error.message).toContain('budget');
             expect(seen).toHaveLength(2);
         } finally {
             await relay.close();
@@ -257,7 +257,7 @@ describe('relay', () => {
         try {
             const response = await fetch(`${relay.baseUrl}/v1/messages`, { method: 'POST', headers: { 'x-api-key': relay.authToken }, body: '{}' });
             expect(response.status).toBe(502);
-            const body = await response.json();
+            const body = (await response.json()) as { type: string };
             expect(body.type).toBe('error');
             expect(JSON.stringify(body)).not.toContain(SECRET);
         } finally {
@@ -288,6 +288,34 @@ describe('daemon spawn preparation', () => {
         expect((await prepareSpawnInference(config, 'codex', { OPENROUTER_API_KEY: SECRET })).type).toBe('error');
         expect((await prepareSpawnInference({ provider: 'openrouter', credentialRef: 'file:/x', model: 'a' }, 'claude', {})).type).toBe('error');
         expect((await prepareSpawnInference(undefined, 'claude', {})).type).toBe('none');
+    });
+});
+
+describe('resume', () => {
+    it('rebuilds the provider from the acknowledgement and carries spend over', async () => {
+        const ack = {
+            harness: 'claude-code', provider: 'openrouter', baseUrlHost: 'openrouter.ai', credentialRef: 'env:OPENROUTER_API_KEY',
+            requestedModel: 'a/tools:nitro', serverTools: ['web_search'], reportedCost: true, budgetUsd: 3, spentUsd: 1.5, appliedAt: 1,
+            usage: { requests: 2, inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 1.5, costSource: 'reported', updatedAt: 1 },
+        };
+        const prep = await prepareResumeInference(ack, { OPENROUTER_API_KEY: SECRET });
+        expect(prep.type).toBe('ok');
+        if (prep.type !== 'ok') return;
+        expect(prep.model).toBe('a/tools:nitro');
+        const env: NodeJS.ProcessEnv = { ...prep.env };
+        const active = await activateSessionInference(env);
+        try {
+            expect(env[INFERENCE_PRIOR_ENV]).toBeUndefined();
+            expect(active!.ack).toMatchObject({ spentUsd: 1.5, budgetUsd: 3, serverTools: ['web_search'], usage: { requests: 2, costSource: 'reported' } });
+        } finally {
+            await active?.close();
+        }
+    });
+
+    it('fails resume clearly if the host lost the credential, and ignores sessions without one', async () => {
+        const ack = { harness: 'claude-code', provider: 'openrouter', baseUrlHost: 'openrouter.ai', credentialRef: 'env:OPENROUTER_API_KEY', requestedModel: 'a/tools', reportedCost: true, appliedAt: 1 };
+        expect((await prepareResumeInference(ack, {})).type).toBe('error');
+        expect((await prepareResumeInference(undefined, {})).type).toBe('none');
     });
 });
 

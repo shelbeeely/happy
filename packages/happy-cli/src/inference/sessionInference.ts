@@ -11,11 +11,13 @@
  */
 
 import {
+    InferenceAckSchema,
     InferenceConfigSchema,
     type InferenceAck,
     type InferenceConfig,
 } from '@slopus/happy-wire';
 import { logger } from '@/ui/logger';
+import { z } from 'zod';
 import type { Metadata } from '@/api/types';
 import {
     OPENROUTER_ANTHROPIC_BASE_URL,
@@ -32,8 +34,15 @@ import { ensureLocalProxyBypass } from '@/claude/utils/proxyBypass';
 
 export const INFERENCE_CONFIG_ENV = 'HAPPY_INFERENCE_CONFIG';
 export const INFERENCE_KEY_ENV = 'HAPPY_INFERENCE_KEY';
+/** Usage and spend carried over when the daemon resumes a session. */
+export const INFERENCE_PRIOR_ENV = 'HAPPY_INFERENCE_PRIOR';
 
 const METADATA_FLUSH_MS = 2_000;
+
+const InferencePriorSchema = z.object({
+    spentUsd: z.number().nonnegative(),
+    usage: InferenceAckSchema.shape.usage.unwrap().nullable(),
+}).optional();
 
 type MetadataUpdater = (handler: (metadata: Metadata) => Metadata) => void;
 
@@ -57,8 +66,10 @@ export interface ActiveInference {
 export async function activateSessionInference(env: NodeJS.ProcessEnv = process.env): Promise<ActiveInference | null> {
     const rawConfig = env[INFERENCE_CONFIG_ENV];
     const apiKey = env[INFERENCE_KEY_ENV];
+    const rawPrior = env[INFERENCE_PRIOR_ENV];
     delete env[INFERENCE_CONFIG_ENV];
     delete env[INFERENCE_KEY_ENV];
+    delete env[INFERENCE_PRIOR_ENV];
     if (!rawConfig) return null;
 
     let config: InferenceConfig;
@@ -85,9 +96,29 @@ export async function activateSessionInference(env: NodeJS.ProcessEnv = process.
         appliedAt: Date.now(),
     };
 
+    const prior = InferencePriorSchema.safeParse((() => {
+        try { return rawPrior ? JSON.parse(rawPrior) : undefined; } catch { return undefined; }
+    })());
+    if (prior.success && prior.data) {
+        ack.spentUsd = prior.data.spentUsd;
+        ack.usage = prior.data.usage ?? undefined;
+    }
+
     let updateMetadata: MetadataUpdater | null = null;
     let flushTimer: NodeJS.Timeout | null = null;
-    const totals = { requests: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, webSearchRequests: 0, costUsd: 0, reported: 0, estimated: 0, uncosted: 0 };
+    const seed = ack.usage;
+    const totals = {
+        requests: seed?.requests ?? 0,
+        inputTokens: seed?.inputTokens ?? 0,
+        outputTokens: seed?.outputTokens ?? 0,
+        cacheReadTokens: seed?.cacheReadTokens ?? 0,
+        cacheWriteTokens: seed?.cacheWriteTokens ?? 0,
+        webSearchRequests: seed?.webSearchRequests ?? 0,
+        costUsd: seed?.costUsd ?? 0,
+        reported: seed?.costSource === 'reported' ? 1 : 0,
+        estimated: seed?.costSource === 'estimated' ? 1 : 0,
+        uncosted: seed?.costSource === 'unavailable' ? 1 : 0,
+    };
 
     const flush = (): void => {
         flushTimer = null;
@@ -156,6 +187,7 @@ export async function activateSessionInference(env: NodeJS.ProcessEnv = process.
             apiKey,
             serverTools: config.serverTools,
             budgetUsd: config.budgetUsd,
+            initialSpentUsd: ack.spentUsd,
             onUsage,
             onBudgetExceeded: (spent) => {
                 ack.budgetExceeded = true;

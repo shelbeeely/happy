@@ -13,6 +13,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
+    InferenceAckSchema,
+    type InferenceConfig,
     CredentialRefSchema,
     InferenceConfigSchema,
     OpenRouterServerToolSchema,
@@ -23,7 +25,7 @@ import {
 import { z } from 'zod';
 import { CredentialError, listCredentialPresence, resolveCredential, storeOpenRouterKey } from './credentials';
 import { effectiveModelSlug, testOpenRouterConnection } from './openrouter';
-import { INFERENCE_CONFIG_ENV, INFERENCE_KEY_ENV } from './sessionInference';
+import { INFERENCE_CONFIG_ENV, INFERENCE_KEY_ENV, INFERENCE_PRIOR_ENV } from './sessionInference';
 
 const execFileAsync = promisify(execFile);
 
@@ -134,4 +136,36 @@ export async function inferenceStoreCredential(params: unknown): Promise<{ ok: b
     } catch (error) {
         return { ok: false, message: error instanceof CredentialError ? error.message : 'Could not store the key on this host' };
     }
+}
+
+/**
+ * Rebuild a session's provider selection from its acknowledgement so a
+ * resumed session keeps the provider, model, tools and budget it started
+ * with instead of silently falling back to the host's default. Prior usage
+ * and spend carry over so the budget keeps counting.
+ */
+export async function prepareResumeInference(
+    rawAck: unknown,
+    ambientEnv: NodeJS.ProcessEnv,
+): Promise<SpawnInferencePreparation> {
+    if (rawAck === undefined || rawAck === null) return { type: 'none' };
+    const ack = InferenceAckSchema.safeParse(rawAck);
+    if (!ack.success) return { type: 'none' };
+    const config: InferenceConfig = {
+        provider: ack.data.provider,
+        credentialRef: ack.data.credentialRef,
+        model: ack.data.requestedModel,
+        serverTools: ack.data.serverTools?.length ? ack.data.serverTools : undefined,
+        budgetUsd: ack.data.budgetUsd,
+        profileName: ack.data.profileName,
+    };
+    const prep = await prepareSpawnInference(config, 'claude', ambientEnv);
+    if (prep.type !== 'ok') return prep;
+    return {
+        ...prep,
+        env: {
+            ...prep.env,
+            [INFERENCE_PRIOR_ENV]: JSON.stringify({ spentUsd: ack.data.spentUsd ?? 0, usage: ack.data.usage ?? null }),
+        },
+    };
 }
