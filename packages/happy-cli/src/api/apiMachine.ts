@@ -4,6 +4,8 @@
  */
 
 import { io, Socket } from 'socket.io-client';
+import { INFERENCE_CAPABILITY, inferenceStatus, inferenceStoreCredential, inferenceTest } from '@/inference/daemonInference';
+import { sanitizeSessionEnvironment } from '@/daemon/sessionEnvironment';
 import { z } from 'zod';
 import { logger } from '@/ui/logger';
 import { configuration } from '@/configuration';
@@ -183,14 +185,15 @@ export class ApiMachineClient {
 
         // Register spawn session handler
         this.rpcHandlerManager.registerHandler('spawn-happy-session', async (params: any) => {
-            const { directory, sessionId, machineId, approvedNewDirectoryCreation, agent, permissionMode, modelMode, effortLevel, environmentVariables, token, resumeClaudeSessionId, resumeCodexThreadId, parentSessionId, forkedFromMessageId, isSideChat } = params || {};
-            logger.debug(`[API MACHINE] Spawning session with params: ${JSON.stringify(params)}`);
+            const { directory, sessionId, machineId, approvedNewDirectoryCreation, agent, permissionMode, modelMode, effortLevel, environmentVariables, token, resumeClaudeSessionId, resumeCodexThreadId, parentSessionId, forkedFromMessageId, isSideChat, inference } = params || {};
+            // Never log the token or environment values; they can carry secrets.
+            logger.debug(`[API MACHINE] Spawning session with params: ${JSON.stringify({ ...params, token: params?.token ? '[redacted]' : undefined, environmentVariables: params?.environmentVariables ? Object.keys(params.environmentVariables) : undefined })}`);
 
             if (!directory) {
                 throw new Error('Directory is required');
             }
 
-            const result = await spawnSession({ directory, sessionId, machineId, approvedNewDirectoryCreation, agent, permissionMode, modelMode, effortLevel, environmentVariables, token, resumeClaudeSessionId, resumeCodexThreadId, parentSessionId, forkedFromMessageId, isSideChat });
+            const result = await spawnSession({ directory, sessionId, machineId, approvedNewDirectoryCreation, agent, permissionMode, modelMode, effortLevel, environmentVariables, token, resumeClaudeSessionId, resumeCodexThreadId, parentSessionId, forkedFromMessageId, isSideChat, inference });
 
             switch (result.type) {
                 case 'success':
@@ -207,6 +210,12 @@ export class ApiMachineClient {
         });
 
         this.syncResumeSessionRpcRegistration();
+
+        // Inference provider RPCs. Params arrive end-to-end encrypted; the
+        // handlers never log them and never return credential values.
+        this.rpcHandlerManager.registerHandler('inference-status', () => inferenceStatus(sanitizeSessionEnvironment(process.env)));
+        this.rpcHandlerManager.registerHandler('inference-test', (params: unknown) => inferenceTest(params, sanitizeSessionEnvironment(process.env)));
+        this.rpcHandlerManager.registerHandler('inference-store-credential', (params: unknown) => inferenceStoreCredential(params));
 
         // Register stop session handler
         this.rpcHandlerManager.registerHandler('stop-session', (params: any) => {
@@ -627,6 +636,7 @@ export class ApiMachineClient {
                 happyCliVersion: configuration.currentCliVersion,
                 cliAvailability: newAvailability,
                 resumeSupport: { ...newResumeSupport, rpcAvailable: !!this.resumeSessionHandler },
+                inference: INFERENCE_CAPABILITY,
             })).catch((err) => {
                 logger.debug('[API MACHINE] Failed to update machine capabilities:', err);
             });

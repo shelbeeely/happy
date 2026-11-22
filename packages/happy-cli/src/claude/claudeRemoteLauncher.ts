@@ -1,4 +1,5 @@
 import { render } from "ink";
+import { sessionInference } from '@/inference/sessionInference';
 import { Session } from "./session";
 import { MessageBuffer } from "@/ui/ink/messageBuffer";
 import { RemoteModeDisplay } from "@/ui/ink/RemoteModeDisplay";
@@ -389,8 +390,12 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                     },
                     onSDKMetadata: (metadata) => {
                         logger.debug('[remote] SDK metadata received, updating session:', metadata);
+                        sessionInference.current?.setActiveModel(metadata.model);
                         session.client.updateMetadata((currentMetadata) => ({
                             ...currentMetadata,
+                            ...(currentMetadata.inference && sessionInference.current
+                                ? { inference: { ...currentMetadata.inference, activeModel: sessionInference.current.ack.activeModel } }
+                                : {}),
                             tools: metadata.tools,
                             slashCommands: metadata.slashCommands,
                             mcpServers: metadata.mcpServers,

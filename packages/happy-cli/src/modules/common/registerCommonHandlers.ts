@@ -127,6 +127,11 @@ export interface SpawnSessionOptions {
     environmentVariables?: Record<string, string>;
     token?: string;
     /**
+     * Phone-selected inference provider (happy-wire InferenceConfig).
+     * Validated by the daemon; carries a credential reference, never a key.
+     */
+    inference?: unknown;
+    /**
      * If set, the daemon spawns the agent with `--resume <id>` so the new
      * Happy session continues from an existing Claude conversation file.
      * Used by the session fork / duplicate flow: the fork RPC produces a

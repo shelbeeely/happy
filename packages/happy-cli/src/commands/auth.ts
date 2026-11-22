@@ -7,6 +7,8 @@ import { createInterface } from 'node:readline';
 import { stopDaemon, checkIfDaemonRunningAndCleanupStaleState } from '@/daemon/controlClient';
 import { logger } from '@/ui/logger';
 import os from 'node:os';
+import { deleteOpenRouterKey, resolveCredential, storeOpenRouterKey } from '@/inference/credentials';
+import { testOpenRouterConnection } from '@/inference/openrouter';
 
 export async function handleAuthCommand(args: string[]): Promise<void> {
   const subcommand = args[0];
@@ -29,6 +31,9 @@ export async function handleAuthCommand(args: string[]): Promise<void> {
     case 'status':
       await handleAuthStatus();
       break;
+    case 'openrouter':
+      await handleOpenRouterAuth(args.slice(1));
+      break;
     default:
       console.error(chalk.red(`Unknown auth subcommand: ${subcommand}`));
       showAuthHelp();
@@ -44,6 +49,9 @@ ${chalk.bold('Usage:')}
   happy auth login [--force]    Authenticate with Happy
   happy auth logout             Remove authentication and machine data
   happy auth status             Show authentication status
+  happy auth openrouter         Store an OpenRouter API key on this host
+                                (read from stdin; --remove deletes it,
+                                --test <model> checks key and model)
   happy auth help               Show this help message
 
 ${chalk.bold('Options:')}
@@ -206,4 +214,61 @@ async function handleAuthStatus(): Promise<void> {
   } catch {
     console.log(chalk.gray('✗ Daemon not running'));
   }
+}
+/** Read one line without echoing it when attached to a terminal. */
+async function readSecretLine(prompt: string): Promise<string> {
+  if (!process.stdin.isTTY) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+    return Buffer.concat(chunks).toString('utf8').trim();
+  }
+  process.stdout.write(prompt);
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, terminal: true });
+    // Suppress echo of the typed key.
+    (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = () => {};
+    rl.question('', (answer) => {
+      rl.close();
+      process.stdout.write('\n');
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * `happy auth openrouter` — keep the OpenRouter key on the execution host.
+ * The Happy app then selects the `happy:openrouter` credential reference.
+ */
+async function handleOpenRouterAuth(args: string[]): Promise<void> {
+  if (args.includes('--remove')) {
+    await deleteOpenRouterKey();
+    console.log(chalk.green('Removed the stored OpenRouter key from this host.'));
+    return;
+  }
+  const testIndex = args.indexOf('--test');
+  if (testIndex >= 0) {
+    const model = args[testIndex + 1];
+    if (!model) {
+      console.error(chalk.red('Usage: happy auth openrouter --test <model>'));
+      process.exit(1);
+    }
+    try {
+      const apiKey = await resolveCredential('happy:openrouter');
+      const result = await testOpenRouterConnection({ apiKey, model });
+      console.log(result.ok ? chalk.green(result.message) : chalk.red(`${result.code}: ${result.message}`));
+      if (!result.ok) process.exit(1);
+    } catch (error) {
+      console.error(chalk.red(error instanceof Error ? error.message : String(error)));
+      process.exit(1);
+    }
+    return;
+  }
+  const key = await readSecretLine('OpenRouter API key: ');
+  try {
+    await storeOpenRouterKey(key);
+  } catch (error) {
+    console.error(chalk.red(error instanceof Error ? error.message : String(error)));
+    process.exit(1);
+  }
+  console.log(chalk.green('Stored. In the Happy app choose credential "Stored on host (happy:openrouter)".'));
 }

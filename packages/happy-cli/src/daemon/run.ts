@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import { INFERENCE_CAPABILITY, prepareSpawnInference } from '@/inference/daemonInference';
 import os from 'os';
 import * as tmp from 'tmp';
 import axios from 'axios';
@@ -57,6 +58,7 @@ export const initialMachineMetadata: MachineMetadata = {
   happyLibDir: projectPath(),
   cliAvailability: detectCLIAvailability(),
   resumeSupport: { ...detectResumeSupport(), rpcAvailable: true },
+  inference: INFERENCE_CAPABILITY,
 };
 
 export async function startDaemon(): Promise<void> {
@@ -276,7 +278,7 @@ export async function startDaemon(): Promise<void> {
 
     // Spawn a new session (sessionId reserved for future --resume functionality)
     const spawnSession = async (options: SpawnSessionOptions): Promise<SpawnSessionResult> => {
-      logger.debugLargeJson('[DAEMON RUN] Spawning session', options);
+      logger.debugLargeJson('[DAEMON RUN] Spawning session', { ...options, token: options.token ? '[redacted]' : undefined, environmentVariables: options.environmentVariables ? Object.keys(options.environmentVariables) : undefined });
 
       const { directory, sessionId, machineId, approvedNewDirectoryCreation = true } = options;
       let directoryCreated = false;
@@ -330,8 +332,19 @@ export async function startDaemon(): Promise<void> {
         // Authentication tokens are resolved here
 
         // Resolve authentication token if provided
+        // Phone-selected inference provider (OpenRouter). Resolved here so a
+        // missing host credential fails the spawn with a readable error.
+        const inferencePrep = await prepareSpawnInference(options.inference, options.agent, ambientEnvironment);
+        if (inferencePrep.type === 'error') {
+          return { type: 'error', errorMessage: inferencePrep.errorMessage };
+        }
+        if (inferencePrep.type === 'ok') {
+          options = { ...options, modelMode: inferencePrep.model };
+        }
+
         const authEnv: Record<string, string> = {};
-        if (options.token) {
+        // An Anthropic OAuth token must not compete with the provider key.
+        if (options.token && inferencePrep.type !== 'ok') {
           if (options.agent === 'codex') {
 
             // Create a temporary directory for Codex
@@ -351,6 +364,9 @@ export async function startDaemon(): Promise<void> {
           ...authEnv,
           ...sanitizeSessionEnvironment(options.environmentVariables ?? {}),
         };
+        // Merged after ${VAR} expansion so a key containing `${` is never
+        // rewritten or reported as an unresolved reference.
+        const inferenceEnv: Record<string, string> = inferencePrep.type === 'ok' ? inferencePrep.env : {};
         if (options.parentSessionId) {
           extraEnv.HAPPY_FORKED_FROM_SESSION_ID = options.parentSessionId;
         }
@@ -408,6 +424,7 @@ export async function startDaemon(): Promise<void> {
             errorMessage
           };
         }
+        extraEnv = { ...extraEnv, ...inferenceEnv };
 
         // Check if tmux is available and should be used
         const tmuxAvailable = await isTmuxAvailable();

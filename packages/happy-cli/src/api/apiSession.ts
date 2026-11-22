@@ -895,6 +895,13 @@ export class ApiSessionClient extends EventEmitter {
         this.socket.emit('session-end', { sid: this.sessionId, time: Date.now() });
     }
 
+    private costEstimator: ((usage: { input: number; output: number; cacheRead: number; cacheWrite: number }, model?: string) => number | undefined) | null = null;
+
+    /** Replace Anthropic list-price cost estimates (used for OpenRouter sessions). */
+    setCostEstimator(estimator: (usage: { input: number; output: number; cacheRead: number; cacheWrite: number }, model?: string) => number | undefined): void {
+        this.costEstimator = estimator;
+    }
+
     /**
      * Send usage data to the server
      */
@@ -902,7 +909,17 @@ export class ApiSessionClient extends EventEmitter {
         // Calculate total tokens
         const totalTokens = usage.input_tokens + usage.output_tokens + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
 
-        const costs = calculateCost(usage, model);
+        // OpenRouter sessions price with OpenRouter's catalog; Anthropic list
+        // prices would be wrong for other vendors' models.
+        const external = this.costEstimator?.({
+            input: usage.input_tokens,
+            output: usage.output_tokens,
+            cacheRead: usage.cache_read_input_tokens || 0,
+            cacheWrite: usage.cache_creation_input_tokens || 0,
+        }, model);
+        const costs = this.costEstimator
+            ? { total: external ?? 0, input: 0, output: 0 }
+            : calculateCost(usage, model);
 
         // Transform Claude usage format to backend expected format
         const usageReport = {

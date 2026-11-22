@@ -1,4 +1,5 @@
 import os from 'node:os';
+import { activateSessionInference, sessionInference } from '@/inference/sessionInference';
 import { randomUUID } from 'node:crypto';
 
 import { ApiClient } from '@/api/api';
@@ -129,6 +130,11 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     const forkedFromMessageId = process.env.HAPPY_FORKED_FROM_MESSAGE_ID;
     const isSideChat = process.env.HAPPY_SIDE_CHAT === '1';
 
+    // Provider selected on the phone and resolved by the daemon. Must run
+    // before Claude Code starts so its environment points at the relay.
+    const activeInference = await activateSessionInference();
+    sessionInference.current = activeInference;
+
     let metadata: Metadata = {
         path: workingDirectory,
         host: os.hostname(),
@@ -146,6 +152,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         lifecycleState: 'running',
         lifecycleStateSince: Date.now(),
         flavor: 'claude',
+        ...(activeInference ? { inference: activeInference.ack } : {}),
         sandbox: sandboxConfig?.enabled ? sandboxConfig : null,
         dangerouslySkipPermissions,
         ...(forkedFromSessionId ? { parentSessionId: forkedFromSessionId } : {}),
@@ -282,6 +289,10 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
     // Create realtime session
     const session = api.sessionSyncClient(response);
+    if (activeInference) {
+        activeInference.attach((handler) => session.updateMetadata(handler));
+        session.setCostEstimator((usage, model) => activeInference.estimateCost(usage, model));
+    }
 
     // On reconnect, un-archive the session and skip replaying old messages.
     if (reconnectSessionId) {

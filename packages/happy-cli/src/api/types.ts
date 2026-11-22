@@ -1,3 +1,5 @@
+import type { InferenceAck } from '@slopus/happy-wire'
+import { InferenceCapabilitySchema } from '@slopus/happy-wire'
 import { z } from 'zod'
 import type { Update, UpdateMachineBody } from '@slopus/happy-wire';
 import { UsageSchema } from '@/claude/types'
@@ -157,6 +159,8 @@ export const MachineMetadataSchema = z.object({
     happyAgentAuthenticated: z.boolean(),
     detectedAt: z.number(),
   }).optional(),
+  /** Present on hosts that accept InferenceConfig in spawn-happy-session. */
+  inference: InferenceCapabilitySchema.optional(),
 })
 
 export type MachineMetadata = z.infer<typeof MachineMetadataSchema>
@@ -293,6 +297,8 @@ export const MessageContentSchema = z.union([UserMessageSchema, AgentMessageSche
 export type MessageContent = z.infer<typeof MessageContentSchema>
 
 export type Metadata = {
+  /** Provider the host applied for this session (see happy-wire InferenceAck). */
+  inference?: InferenceAck,
   /**
    * ACP session config option value (normalized for UI metadata consumers).
    */
