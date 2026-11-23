@@ -199,7 +199,7 @@ private fun ChatRoute(
     val modesMetadata = metadata ?: anchor?.metadata
     val modesMirror = if (metadata == null && anchor != null) anchorMirror ?: mirror else mirror
     val modes = remember(drafting, draftOptions, modesMetadata, modesMirror, settings.agentDefaultOverrides, settings.inference) {
-        if (drafting) composeChatModes(draftOptions) else ComposerModeResolver.resolve(modesMetadata, modesMirror, settings.agentDefaultOverrides, resources::getString, settings.inference)
+        if (drafting) composeChatModes(draftOptions) else ComposerModeResolver.resolve(modesMetadata, modesMirror, settings.agentDefaultOverrides, settings.inference, resources::getString)
     }
     val latestMirror by rememberUpdatedState(mirror)
     val local by graph.localSettings.values.collectAsStateWithLifecycle()

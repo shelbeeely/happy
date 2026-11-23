@@ -240,7 +240,7 @@ private fun SessionInfoRouteScreen(graph: AppGraph, id: String, nav: NavHostCont
     val resources = LocalResources.current
     val metadata = session?.metadata
     val modes = remember(metadata, mirror, settings.agentDefaultOverrides) {
-        ComposerModeResolver.resolve(metadata, mirror, settings.agentDefaultOverrides, resources::getString)
+        ComposerModeResolver.resolve(metadata, mirror, settings.agentDefaultOverrides, settings.inference, resources::getString)
     }
     val latestMirror by rememberUpdatedState(mirror)
     val latestMetadata by rememberUpdatedState(metadata)

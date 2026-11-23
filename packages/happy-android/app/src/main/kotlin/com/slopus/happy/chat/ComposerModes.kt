@@ -62,8 +62,15 @@ object ComposerModeResolver {
         mirror: ComposerMirror,
         overrides: AgentDefaultOverrides?,
         translate: (Int) -> String,
-        /** The account's OpenRouter favourites, offered in a session its computer runs on OpenRouter. */
-        inference: InferenceSettings? = null,
+    ): ComposerModes = resolve(metadata, mirror, overrides, null, translate)
+
+    /** [resolve] with the account's OpenRouter favourites, offered in a session its computer runs on OpenRouter. */
+    fun resolve(
+        metadata: SessionMetadata?,
+        mirror: ComposerMirror,
+        overrides: AgentDefaultOverrides?,
+        inference: InferenceSettings?,
+        translate: (Int) -> String,
     ): ComposerModes {
         val flavor = metadata?.flavor
         val rig = metadata.isRig()
