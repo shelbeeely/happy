@@ -756,7 +756,7 @@ class AppGraph(
      * it follows [isForeground] and never runs from a service.
      */
     val localAi by lazy {
-        com.slopus.happy.localai.LocalAi(com.slopus.happy.localai.MlKitLocalModel(), isForeground, scope)
+        com.slopus.happy.localai.LocalAi(com.slopus.happy.localai.MlKitLocalModel(appContext), isForeground, scope)
     }
 
     /** Shares and assistant drafts waiting for a session's chat (on disk, no backup). */

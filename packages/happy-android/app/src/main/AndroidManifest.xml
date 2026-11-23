@@ -161,6 +161,11 @@
             android:name="com.google.firebase.provider.FirebaseInitProvider"
             android:authorities="${applicationId}.firebaseinitprovider"
             tools:node="remove" />
+        <!-- ML Kit starts where on-device AI is first used (localai/LocalModel.kt), not before every cold start. -->
+        <provider
+            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+            android:authorities="${applicationId}.mlkitinitprovider"
+            tools:node="remove" />
         <!-- Pushes relayed by Expo arrive as FCM data messages (push/PushServices.kt). -->
         <service
             android:name=".push.HappyMessagingService"

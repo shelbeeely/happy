@@ -101,15 +101,23 @@ data class Settings(
     /** Missing values use code defaults and are not sent as agent metadata. */
     val agentDefaultOverrides: AgentDefaultOverrides = AgentDefaultOverrides(),
     val dismissedCLIWarnings: DismissedCliWarnings = DismissedCliWarnings(),
-    /**
-     * OpenRouter profiles and favourite models (Android's own key,
-     * `inferenceProfiles`). Read leniently: a bad entry is dropped, never a
-     * reason to reset the other settings.
-     */
-    val inference: com.slopus.happy.inference.InferenceSettings = com.slopus.happy.inference.InferenceSettings(),
     /** Keys this version doesn't know, as they came. */
     val unknown: JsonObject = EmptyJson,
 ) {
+    /**
+     * OpenRouter profiles and favourite models. Android's own key
+     * (`inferenceProfiles`), outside happy-app's schema, so it lives with the
+     * passthrough keys in [unknown]: the defaults stay happy-app's, and a
+     * client that doesn't know it keeps it. Read leniently: a bad entry is
+     * dropped, never a reason to reset the other settings.
+     */
+    val inference: com.slopus.happy.inference.InferenceSettings
+        get() = com.slopus.happy.inference.InferenceSettings.parse(unknown[com.slopus.happy.inference.InferenceSettings.SETTINGS_KEY])
+
+    /** Written even when empty: a settings change only sends keys present, so removing it wouldn't sync. */
+    fun withInference(value: com.slopus.happy.inference.InferenceSettings): Settings =
+        copy(unknown = JsonObject(unknown + (com.slopus.happy.inference.InferenceSettings.SETTINGS_KEY to value.toJson())))
+
     /** Every known field with its value, then [unknown]. */
     fun toJson(): JsonObject = JsonObject(unknown + fields.associate { it.name to it.write(this) })
 
@@ -279,11 +287,6 @@ private val fields: List<Field> = listOf(
         "agentDefaultOverrides",
         { s, j -> s.copy(agentDefaultOverrides = AgentDefaultOverrides.parse(j)) },
         { it.agentDefaultOverrides.toJson() },
-    ),
-    Field(
-        com.slopus.happy.inference.InferenceSettings.SETTINGS_KEY,
-        { s, j -> s.copy(inference = com.slopus.happy.inference.InferenceSettings.parse(j)) },
-        { it.inference.toJson() },
     ),
     Field(
         "dismissedCLIWarnings",

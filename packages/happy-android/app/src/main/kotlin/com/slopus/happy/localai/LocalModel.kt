@@ -87,9 +87,16 @@ data class LocalPrompt(
     val temperature: Float = 0.2f,
 )
 
-/** Gemini Nano through AICore. Created lazily; [close] releases AICore's binding. */
-class MlKitLocalModel : LocalModel {
-    private val model: GenerativeModel by lazy { Generation.getClient() }
+/**
+ * Gemini Nano through AICore. Created lazily; [close] releases AICore's
+ * binding. ML Kit's init provider is removed from the manifest (it would run
+ * at every cold start), so ML Kit is initialized here on first use.
+ */
+class MlKitLocalModel(private val context: android.content.Context) : LocalModel {
+    private val model: GenerativeModel by lazy {
+        com.google.mlkit.common.sdkinternal.MlKitContext.initializeIfNeeded(context.applicationContext)
+        Generation.getClient()
+    }
 
     override suspend fun availability(): ModelAvailability = try {
         when (model.checkStatus()) {
@@ -101,6 +108,9 @@ class MlKitLocalModel : LocalModel {
     } catch (e: GenAiException) {
         ModelAvailability.Unavailable
     } catch (e: SecurityException) {
+        ModelAvailability.Unavailable
+    } catch (e: IllegalStateException) {
+        // ML Kit or AICore couldn't start on this device.
         ModelAvailability.Unavailable
     }
 

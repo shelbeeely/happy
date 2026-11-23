@@ -68,7 +68,7 @@ class InferenceModelTest {
 
     @Test
     fun settingsRoundTripAndLenientParsing() {
-        val settings = Settings.Defaults.copy(inference = InferenceSettings(listOf(profile), listOf("x/y")))
+        val settings = Settings.Defaults.withInference(InferenceSettings(listOf(profile), listOf("x/y")))
         val parsed = Settings.parse(settings.toJson())
         assertEquals(listOf(profile), parsed.inference.profiles)
         assertEquals(listOf("x/y"), parsed.inference.favorites)

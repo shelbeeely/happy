@@ -54,7 +54,7 @@ fun NavGraphBuilder.providerRoutes(graph: AppGraph, nav: NavHostController) {
         ModelBrowserScreen(
             state = state,
             favorites = settings.inference.favorites,
-            onToggleFavorite = { model -> graph.settings.change { it.copy(inference = it.inference.toggleFavorite(model)) } },
+            onToggleFavorite = { model -> graph.settings.change { it.withInference(it.inference.toggleFavorite(model)) } },
             onPick = { model ->
                 nav.previousBackStackEntry?.savedStateHandle?.set(PICKED_MODEL, model.id)
                 nav.popBackStack()
@@ -194,11 +194,11 @@ private fun ProfileEditor(graph: AppGraph, nav: NavHostController, id: String?, 
             }
         },
         onSave = { profile ->
-            graph.settings.change { it.copy(inference = it.inference.upsert(profile)) }
+            graph.settings.change { it.withInference(it.inference.upsert(profile)) }
             nav.popBackStack()
         },
         onDelete = { profile ->
-            graph.settings.change { it.copy(inference = it.inference.remove(profile.id)) }
+            graph.settings.change { it.withInference(it.inference.remove(profile.id)) }
             nav.popBackStack()
         },
         onBack = { nav.popBackStack() },

@@ -939,6 +939,19 @@ happy-app's `sources/changelog/changelog.json`, with its images in
 `Changelog.images`. `AppGraph.changelog` is the read marker Home's update
 banner needs.
 
+### AI providers and on-device AI
+
+Settings › AI providers holds OpenRouter profiles (`inference/`, `ui/inference/`;
+account settings key `inferenceProfiles`, read leniently) and On-device AI
+(`localai/`, `ui/localai/`). A profile names a credential reference the computer
+resolves; the phone never stores a provider key. What a session runs on is shown
+only from the computer's acknowledgement (session metadata `inference`). Local AI
+is ML Kit GenAI (Gemini Nano via AICore): availability from `checkStatus()` at
+runtime, foreground only, session text fenced as untrusted, results are drafts.
+Share target, Explain with Happy, shortcuts and AppFunctions live in `assist/` and
+`ui/share/`. Details, privacy rules and the device checklist:
+`docs/companion-features.md`; host side: `docs/openrouter.md` at the root.
+
 ### Theme and what the platform draws
 
 The theme setting (`localSettings.themePreference`) is the platform's
