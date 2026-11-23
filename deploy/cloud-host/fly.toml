@@ -1,0 +1,22 @@
+# Fly.io app for the Happy cloud host (docs/cloud-host.md). From the repository root:
+#   fly launch --no-deploy --copy-config --config deploy/cloud-host/fly.toml
+#   fly volumes create happy_data --size 1 --config deploy/cloud-host/fly.toml
+#   fly volumes create happy_workspace --size 10 --config deploy/cloud-host/fly.toml
+#   fly secrets set OPENROUTER_API_KEY=... GITHUB_TOKEN=... --config deploy/cloud-host/fly.toml
+#   fly deploy --config deploy/cloud-host/fly.toml --dockerfile deploy/cloud-host/Dockerfile .
+#   fly logs   # scan the QR code once
+app = "happy-cloud-host"
+primary_region = "iad"
+
+# One always-on machine; no [http_service]: the daemon only dials out.
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+
+[[mounts]]
+  source = "happy_data"
+  destination = "/data"
+
+# A second volume is not supported on one machine by Fly; workspaces live under /data.
+[env]
+  HAPPY_WORKSPACE = "/data/workspace"

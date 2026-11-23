@@ -14,11 +14,24 @@ import React from 'react';
 import { randomUUID } from 'node:crypto';
 import { logger } from './logger';
 
-export async function doAuth(): Promise<Credentials | null> {
-    console.clear();
+/**
+ * Whether sign-in runs without the interactive menu: on a host with no
+ * terminal (a container's PID 1, a systemd service) the menu could never be
+ * answered. `HAPPY_AUTH_HEADLESS=1` (or `happy auth login --headless`)
+ * forces it; `HAPPY_AUTH_HEADLESS=0` forces the menu.
+ */
+export function shouldUseHeadlessAuth(env: NodeJS.ProcessEnv, stdinIsTTY: boolean | undefined): boolean {
+    if (env.HAPPY_AUTH_HEADLESS === '1' || env.HAPPY_AUTH_HEADLESS === 'true') return true;
+    if (env.HAPPY_AUTH_HEADLESS === '0' || env.HAPPY_AUTH_HEADLESS === 'false') return false;
+    return stdinIsTTY !== true;
+}
 
-    // Show authentication method selector
-    const authMethod = await selectAuthenticationMethod();
+export async function doAuth(): Promise<Credentials | null> {
+    const headless = shouldUseHeadlessAuth(process.env, process.stdin.isTTY);
+    if (!headless) console.clear();
+
+    // Show authentication method selector (headless hosts get both ways at once)
+    const authMethod = headless ? 'headless' as const : await selectAuthenticationMethod();
     if (!authMethod) {
         console.log('\nAuthentication cancelled.\n');
         process.exit(0);
@@ -54,6 +67,9 @@ export async function doAuth(): Promise<Credentials | null> {
     }
 
     // Handle authentication based on selected method
+    if (authMethod === 'headless') {
+        return await doHeadlessAuth(keypair);
+    }
     if (authMethod === 'mobile') {
         return await doMobileAuth(keypair);
     } else {
@@ -110,6 +126,23 @@ async function doMobileAuth(keypair: tweetnacl.BoxKeyPair): Promise<Credentials 
 }
 
 /**
+ * Sign-in on a host without a terminal: the QR code and both links go to
+ * stdout (container logs), and the host waits for the phone to approve.
+ */
+async function doHeadlessAuth(keypair: tweetnacl.BoxKeyPair): Promise<Credentials | null> {
+    const authUrl = 'happy://terminal?' + encodeBase64Url(keypair.publicKey);
+    console.log('\nThis host is not signed in to Happy.');
+    console.log('In the Happy app, scan this QR code (Add > Scan) to connect it:\n');
+    displayQRCode(authUrl);
+    console.log('\nOr open this link on the phone:');
+    console.log(authUrl);
+    console.log('\nOr in a browser where you are signed in:');
+    console.log(generateWebAuthUrl(keypair.publicKey));
+    console.log('');
+    return await waitForAuthentication(keypair);
+}
+
+/**
  * Handle web authentication flow
  */
 async function doWebAuth(keypair: tweetnacl.BoxKeyPair): Promise<Credentials | null> {
@@ -143,7 +176,9 @@ async function doWebAuth(keypair: tweetnacl.BoxKeyPair): Promise<Credentials | n
  * Wait for authentication to complete and return credentials
  */
 async function waitForAuthentication(keypair: tweetnacl.BoxKeyPair): Promise<Credentials | null> {
-    process.stdout.write('Waiting for authentication');
+    // Container logs can't redraw a line: headless hosts get one line, not an animation.
+    const animate = !shouldUseHeadlessAuth(process.env, process.stdin.isTTY);
+    process.stdout.write(animate ? 'Waiting for authentication' : 'Waiting for approval in the Happy app…\n');
     let dots = 0;
     let cancelled = false;
 
@@ -219,7 +254,7 @@ async function waitForAuthentication(keypair: tweetnacl.BoxKeyPair): Promise<Cre
             }
 
             // Animate waiting dots
-            process.stdout.write('\rWaiting for authentication' + '.'.repeat((dots % 3) + 1) + '   ');
+            if (animate) process.stdout.write('\rWaiting for authentication' + '.'.repeat((dots % 3) + 1) + '   ');
             dots++;
 
             await delay(1000);

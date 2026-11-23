@@ -1,0 +1,21 @@
+// Happy cloud host in GitHub Codespaces (docs/cloud-host.md). Codespaces stop
+// when idle, so this is a convenient host, not an always-on one.
+{
+  "name": "Happy cloud host",
+  "build": {
+    "dockerfile": "../deploy/cloud-host/Dockerfile",
+    "context": ".."
+  },
+  "overrideCommand": true,
+  "remoteUser": "happy",
+  "containerEnv": {
+    "HAPPY_HOME_DIR": "/home/happy/.happy",
+    "HAPPY_HOST_KIND": "cloud",
+    "HAPPY_WORKSPACE": "${containerWorkspaceFolder}/.."
+  },
+  "secrets": {
+    "OPENROUTER_API_KEY": { "description": "Optional OpenRouter key; profiles use env:OPENROUTER_API_KEY." }
+  },
+  // Pair once with `happy auth login --headless` in the terminal, then:
+  "postStartCommand": "happy daemon start"
+}

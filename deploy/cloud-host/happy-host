@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Entrypoint of the Happy cloud host image (deploy/cloud-host/Dockerfile).
+# Prepares git, optional repositories and the OpenRouter key, then runs the
+# Happy daemon in the foreground. Secrets come from the environment or the
+# /data volume; nothing secret is printed.
+set -euo pipefail
+
+workspace="${HAPPY_WORKSPACE:-/workspace}"
+
+# Started as root (the image's default): make the volumes ours, then run the
+# rest as the unprivileged user. Volumes from some hosts mount root-owned.
+if [[ "$(id -u)" == "0" ]]; then
+  run_as="${HAPPY_HOST_USER:-happy}"
+  mkdir -p "$workspace" "${HAPPY_HOME_DIR:-/data/happy}"
+  chown "$run_as:" "$workspace" "${HAPPY_HOME_DIR:-/data/happy}" "$(dirname "${HAPPY_HOME_DIR:-/data/happy}")"
+  exec setpriv --reuid="$run_as" --regid="$run_as" --init-groups env HOME="/home/$run_as" "$0" "$@"
+fi
+mkdir -p "$workspace" "${HAPPY_HOME_DIR:-$HOME/.happy}"
+
+log() { printf '%s [happy-host] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+
+# Git identity for commits the agent makes.
+git config --global user.name "${GIT_AUTHOR_NAME:-Happy Cloud Host}"
+git config --global user.email "${GIT_AUTHOR_EMAIL:-happy-cloud-host@users.noreply.github.com}"
+git config --global init.defaultBranch main
+git config --global --add safe.directory '*'
+
+# GitHub: a token makes clones and pushes over https work (gh is the credential helper).
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  export GH_TOKEN="$GITHUB_TOKEN"
+  gh auth setup-git >/dev/null 2>&1 && log "GitHub credentials configured for git"
+fi
+
+# OpenRouter: a key in the environment is used through the profile reference
+# env:OPENROUTER_API_KEY; without one, store a key from the phone
+# (Settings > AI providers > Store key on this computer).
+if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+  log "OPENROUTER_API_KEY is set (profiles can use env:OPENROUTER_API_KEY)"
+fi
+
+# Repositories to have ready on first boot: space-separated git URLs.
+for url in ${REPOS:-}; do
+  name="$(basename "${url%.git}")"
+  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    log "skipping repository with an unusual name: $url"
+    continue
+  fi
+  if [[ -d "$workspace/$name/.git" ]]; then
+    log "repository present: $name"
+  else
+    log "cloning $name"
+    git clone --quiet "$url" "$workspace/$name" || log "clone failed: $name"
+  fi
+done
+
+log "starting the Happy daemon (pair it from the app if a QR code appears below)"
+exec happy daemon start-sync

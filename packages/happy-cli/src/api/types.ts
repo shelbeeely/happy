@@ -159,6 +159,8 @@ export const MachineMetadataSchema = z.object({
     happyAgentAuthenticated: z.boolean(),
     detectedAt: z.number(),
   }).optional(),
+  /** What kind of host this is (`HAPPY_HOST_KIND`); `cloud` for an always-on cloud host. */
+  hostKind: z.string().max(32).optional(),
   /** Present on hosts that accept InferenceConfig in spawn-happy-session. */
   inference: InferenceCapabilitySchema.optional(),
 })

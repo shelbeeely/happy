@@ -46,7 +46,9 @@ function showAuthHelp(): void {
 ${chalk.bold('happy auth')} - Authentication management
 
 ${chalk.bold('Usage:')}
-  happy auth login [--force]    Authenticate with Happy
+  happy auth login [--force] [--headless]
+                                Authenticate with Happy (--headless prints
+                                the QR code and links instead of a menu)
   happy auth logout             Remove authentication and machine data
   happy auth status             Show authentication status
   happy auth openrouter         Store an OpenRouter API key on this host
@@ -65,6 +67,8 @@ ${chalk.gray('cannot be displayed from the CLI.')}
 
 async function handleAuthLogin(args: string[]): Promise<void> {
   const forceAuth = args.includes('--force') || args.includes('-f');
+  // No menu: QR code and links on stdout (cloud hosts, containers, services).
+  if (args.includes('--headless')) process.env.HAPPY_AUTH_HEADLESS = '1';
 
   if (forceAuth) {
     // As per user's request: "--force-auth will clear credentials, clear machine ID, stop daemon"

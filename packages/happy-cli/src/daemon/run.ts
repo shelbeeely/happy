@@ -59,7 +59,14 @@ export const initialMachineMetadata: MachineMetadata = {
   cliAvailability: detectCLIAvailability(),
   resumeSupport: { ...detectResumeSupport(), rpcAvailable: true },
   inference: INFERENCE_CAPABILITY,
+  ...hostKindFromEnv(process.env),
 };
+
+/** `HAPPY_HOST_KIND=cloud` labels an always-on cloud host for the apps (lower-case word, at most 32). */
+export function hostKindFromEnv(env: NodeJS.ProcessEnv): { hostKind?: string } {
+  const kind = env.HAPPY_HOST_KIND?.trim().toLowerCase();
+  return kind && /^[a-z][a-z0-9-]{0,31}$/.test(kind) ? { hostKind: kind } : {};
+}
 
 export async function startDaemon(): Promise<void> {
   // The daemon may have been launched from a session process. Keep its normal

@@ -1,0 +1,22 @@
+# Always-on Happy cloud host. From the repository root:
+#   cp deploy/cloud-host/.env.example deploy/cloud-host/.env   # then edit
+#   docker compose -f deploy/cloud-host/docker-compose.yml up -d --build
+#   docker compose -f deploy/cloud-host/docker-compose.yml logs -f   # scan the QR code once
+services:
+  happy-host:
+    build:
+      context: ../..
+      dockerfile: deploy/cloud-host/Dockerfile
+    image: happy-cloud-host
+    restart: unless-stopped
+    init: false # tini is the entrypoint
+    env_file:
+      - .env
+    volumes:
+      - happy-data:/data
+      - happy-workspace:/workspace
+    # The daemon only dials out to the Happy server: no ports to publish.
+
+volumes:
+  happy-data:
+  happy-workspace:

@@ -46,6 +46,9 @@ function getSessionLogPath(): string {
   return join(configuration.logsDir, filename)
 }
 
+const DAEMON_STDOUT_MIRROR = process.env.HAPPY_DAEMON_LOG_STDOUT === '1'
+const DAEMON_LIFECYCLE_PREFIX = /^\[(DAEMON RUN|API MACHINE)\]/
+
 class Logger {
   private dangerouslyUnencryptedServerLoggingUrl: string | undefined
 
@@ -68,6 +71,12 @@ class Logger {
 
   debug(message: string, ...args: unknown[]): void {
     this.logToFile(`[${this.localTimezoneTimestamp()}]`, message, ...args)
+    // Cloud hosts (HAPPY_DAEMON_LOG_STDOUT=1): the daemon's own lifecycle lines
+    // also go to stdout for container logs. Session traffic and large JSON
+    // dumps stay in the file only, so no session text reaches a log service.
+    if (DAEMON_STDOUT_MIRROR && DAEMON_LIFECYCLE_PREFIX.test(message)) {
+      process.stdout.write(`${new Date().toISOString()} ${message}\n`)
+    }
 
     // NOTE: @kirill does not think its a good ideas,
     // as it will break us using claude in interactive mode.
