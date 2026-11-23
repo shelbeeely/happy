@@ -71,7 +71,7 @@ class RepositoryCloneTest {
         git(origin, "add", ".")
         git(origin, "commit", "-q", "-m", "init")
         val workspace = File(folder.root, "ws")
-        val target = RepositoryClone.Target(origin.toURI().toString(), "it's here")
+        val target = RepositoryClone.Target(origin.absolutePath, "it's here")
 
         val first = run(RepositoryClone.command(target), workspace)
         val path = RepositoryClone.checkoutPath(first, target)
@@ -90,7 +90,7 @@ class RepositoryCloneTest {
     @Test
     fun aFailedCloneLeavesNothingAndSaysWhy() {
         val workspace = File(folder.root, "ws")
-        val target = RepositoryClone.Target(File(folder.root, "missing").toURI().toString(), "missing")
+        val target = RepositoryClone.Target(File(folder.root, "missing").absolutePath, "missing")
         val result = run(RepositoryClone.command(target), workspace)
         assertNull(RepositoryClone.checkoutPath(result, target))
         assertTrue(RepositoryClone.failure(result).isNotBlank())
