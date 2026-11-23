@@ -21,6 +21,7 @@ import com.slopus.happy.inference.HostCredentials
 import com.slopus.happy.inference.InferenceCapability
 import com.slopus.happy.inference.StoreCredentialResult
 import com.slopus.happy.model.MachineChoice
+import com.slopus.happy.assist.isCloudHost
 import com.slopus.happy.ui.components.Alert
 import com.slopus.happy.ui.components.AlertButton
 import com.slopus.happy.ui.components.HappyAlert
@@ -78,6 +79,7 @@ private fun rememberProviderMachines(graph: AppGraph, credentials: Map<String, H
             capable = InferenceCapability.from(machine.metadata?.raw)?.openRouter == true,
             credentials = credentials[machine.id],
             checking = machine.id in checking,
+            cloud = machine.metadata.isCloudHost,
         )
     }
 }

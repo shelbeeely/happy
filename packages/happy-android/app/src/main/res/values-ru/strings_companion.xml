@@ -200,4 +200,10 @@
     <string name="shortcut_new_task_long">Начать новую задачу</string>
     <string name="assist_draft_title">Черновик от ассистента</string>
     <string name="assist_draft_message">Ассистент поместил черновик в поле ввода этой сессии. Проверьте и отредактируйте его перед отправкой; ничего не отправлено.</string>
+    <string name="clone_repository">Клонировать репозиторий</string>
+    <string name="clone_repository_message">Загружает git-репозиторий на этот компьютер и запускает в нём сессию. Для приватных репозиториев нужен доступ git на компьютере (на облачном хосте — GITHUB_TOKEN).</string>
+    <string name="clone_repository_invalid">Введите адрес репозитория https://, ssh:// или git@.</string>
+    <string name="clone_repository_cloning">Клонирование %1$s…</string>
+    <string name="clone_repository_failed">Не удалось клонировать репозиторий</string>
+    <string name="cloud_host_label">Облако</string>
 </resources>

@@ -166,10 +166,11 @@ class MachineOps internal constructor(
         (rpc.machineRpc(machineId, "stop-daemon", JsonObject(emptyMap())) as? JsonObject)?.string("message")
 
     /** ops.ts `machineBash`. */
-    suspend fun bash(machineId: String, command: String, cwd: String): BashResult = try {
+    suspend fun bash(machineId: String, command: String, cwd: String, timeoutMs: Long? = null): BashResult = try {
         decode(BashResult.serializer(), rpc.machineRpc(machineId, "bash", buildJsonObject {
             put("command", command)
             put("cwd", cwd)
+            timeoutMs?.let { put("timeout", it) }
         }))
     } catch (e: CancellationException) {
         throw e

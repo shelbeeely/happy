@@ -63,6 +63,8 @@ data class ProviderMachine(
     /** What the computer said about its keys; null while asking or when it couldn't be asked. */
     val credentials: HostCredentials?,
     val checking: Boolean = false,
+    /** An always-on cloud host (`hostKind: "cloud"`). */
+    val cloud: Boolean = false,
 )
 
 /**
@@ -111,7 +113,7 @@ fun ProvidersScreen(
                 }
                 for (machine in machines) {
                     Item(
-                        title = machine.name,
+                        title = if (machine.cloud) "${machine.name} · ${stringResource(R.string.cloud_host_label)}" else machine.name,
                         subtitle = machineSummary(machine),
                         subtitleLines = 4,
                         icon = { ItemIcon(Ionicon.DesktopOutline, if (machine.online) colors.status.connected else colors.status.disconnected) },

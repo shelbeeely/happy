@@ -200,4 +200,10 @@
     <string name="shortcut_new_task_long">开始新任务</string>
     <string name="assist_draft_title">助手起草的内容</string>
     <string name="assist_draft_message">有助手在此会话的输入框中放入了草稿。发送前请检查并编辑；尚未发送任何内容。</string>
+    <string name="clone_repository">克隆仓库</string>
+    <string name="clone_repository_message">将 git 仓库拉取到这台电脑并在其中启动会话。私有仓库需要电脑上有 git 访问权限（云主机上为 GITHUB_TOKEN）。</string>
+    <string name="clone_repository_invalid">请输入 https://、ssh:// 或 git@ 仓库地址。</string>
+    <string name="clone_repository_cloning">正在克隆 %1$s…</string>
+    <string name="clone_repository_failed">无法克隆仓库</string>
+    <string name="cloud_host_label">云端</string>
 </resources>

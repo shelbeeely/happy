@@ -200,4 +200,10 @@
     <string name="shortcut_new_task_long">Comença una tasca nova</string>
     <string name="assist_draft_title">Esborrany d\'un assistent</string>
     <string name="assist_draft_message">Un assistent ha posat un esborrany a l\'editor d\'aquesta sessió. Revisa\'l i edita\'l abans d\'enviar-lo; no s\'ha enviat res.</string>
+    <string name="clone_repository">Clona un repositori</string>
+    <string name="clone_repository_message">Baixa un repositori git en aquest ordinador i hi inicia la sessió. Els repositoris privats necessiten accés git a l\'ordinador (en un host al núvol, GITHUB_TOKEN).</string>
+    <string name="clone_repository_invalid">Introdueix un URL de repositori https://, ssh:// o git@.</string>
+    <string name="clone_repository_cloning">S\'està clonant %1$s…</string>
+    <string name="clone_repository_failed">No s\'ha pogut clonar el repositori</string>
+    <string name="cloud_host_label">Núvol</string>
 </resources>

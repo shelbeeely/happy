@@ -59,7 +59,15 @@ class LocalAi(
     /** Asks AICore again; cheap, and safe to call whenever a surface opens. */
     suspend fun refresh() {
         if (mutableState.value is LocalAiState.Downloading && downloadJob?.isActive == true) return
-        mutableState.value = when (model.availability()) {
+        // Anything AICore or ML Kit throws means "not here": a chat must never fail over it.
+        val availability = try {
+            model.availability()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ModelAvailability.Unavailable
+        }
+        mutableState.value = when (availability) {
             ModelAvailability.Available -> LocalAiState.Ready
             ModelAvailability.Downloadable -> LocalAiState.NeedsDownload
             ModelAvailability.Downloading -> LocalAiState.Downloading(0)

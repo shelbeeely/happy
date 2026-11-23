@@ -63,6 +63,16 @@ class LocalAiTest {
     }
 
     @Test
+    fun aThrowingModelReadsAsUnsupported() = runTest {
+        val model = object : LocalModel by FakeModel() {
+            override suspend fun availability(): ModelAvailability = throw IllegalStateException("MlKitContext has not been initialized")
+        }
+        val ai = LocalAi(model, foreground, backgroundScope)
+        ai.refresh()
+        assertEquals(LocalAiState.Unsupported, ai.state.value)
+    }
+
+    @Test
     fun downloadFailureIsReported() = runTest {
         val model = FakeModel(availability = ModelAvailability.Downloadable, downloads = flowOf(ModelDownload.Started, ModelDownload.Failed(LocalAiError.NotEnoughStorage)))
         val ai = LocalAi(model, foreground, backgroundScope)

@@ -200,4 +200,10 @@
     <string name="shortcut_new_task_long">新しいタスクを開始</string>
     <string name="assist_draft_title">アシスタントの下書き</string>
     <string name="assist_draft_message">アシスタントがこのセッションの入力欄に下書きを入れました。送信前に確認・編集してください。何も送信されていません。</string>
+    <string name="clone_repository">リポジトリをクローン</string>
+    <string name="clone_repository_message">git リポジトリをこのコンピュータに取得し、そこでセッションを開始します。非公開リポジトリにはコンピュータ上の git アクセスが必要です（クラウドホストでは GITHUB_TOKEN）。</string>
+    <string name="clone_repository_invalid">https://、ssh:// または git@ のリポジトリ URL を入力してください。</string>
+    <string name="clone_repository_cloning">%1$s をクローン中…</string>
+    <string name="clone_repository_failed">リポジトリをクローンできませんでした</string>
+    <string name="cloud_host_label">クラウド</string>
 </resources>

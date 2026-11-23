@@ -38,6 +38,8 @@ import com.slopus.happy.AppGraph
 import com.slopus.happy.R
 import com.slopus.happy.model.BotRequest
 import com.slopus.happy.model.CUSTOM_PROJECT_PATH_KEY
+import com.slopus.happy.model.CLONE_REPOSITORY_KEY
+import com.slopus.happy.assist.RepositoryClone
 import com.slopus.happy.model.NewSessionLabels
 import com.slopus.happy.model.NewSessionPage
 import com.slopus.happy.model.isValidBotName
@@ -87,6 +89,8 @@ fun newSessionLabels(resources: Resources, now: () -> Long = System::currentTime
     notSupportedBy = { resources.getString(R.string.home_dock_not_supported_by, it) },
     lastSeen = { resources.getString(R.string.status_last_seen, formatLastSeen(resources, it, now())) },
     inferenceUnsupported = resources.getString(R.string.inference_cli_update_needed),
+    cloneRepository = resources.getString(R.string.clone_repository),
+    cloud = resources.getString(R.string.cloud_host_label),
 )
 
 /** A composer bound to the draft and the starter, with the dialogs its start may raise. */
@@ -130,6 +134,7 @@ fun rememberNewSessionDock(
     val picker = rememberImagePicker()
     var confirming by remember { mutableStateOf<Pair<String, CompletableDeferred<Boolean>>?>(null) }
     var prompting by remember { mutableStateOf<Prompt?>(null) }
+    var cloning by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     val strings = remember(resources) {
@@ -138,6 +143,11 @@ fun rememberNewSessionDock(
             val ok = resources.getString(R.string.common_ok)
             val customPath = resources.getString(R.string.machine_launcher_enter_custom_path)
             val customPathPlaceholder = resources.getString(R.string.home_dock_custom_path_placeholder)
+            val clone = resources.getString(R.string.clone_repository)
+            val cloneMessage = resources.getString(R.string.clone_repository_message)
+            val cloneInvalid = resources.getString(R.string.clone_repository_invalid)
+            val cloning = resources.getString(R.string.clone_repository_cloning)
+            val cloneFailed = resources.getString(R.string.clone_repository_failed)
         }
     }
 
@@ -187,7 +197,36 @@ fun rememberNewSessionDock(
             },
             onCancel = { newSession.starter.cancel() },
             onSelect = { page, key ->
-                if (page == NewSessionPage.Project && key == CUSTOM_PROJECT_PATH_KEY) {
+                if (page == NewSessionPage.Project && key == CLONE_REPOSITORY_KEY) {
+                    val machine = newSession.options.value?.choice?.happyMachine
+                    prompting = Prompt(
+                        title = strings.clone,
+                        message = strings.cloneMessage,
+                        placeholder = "https://github.com/owner/repo",
+                        confirmText = strings.clone,
+                        allowBlank = false,
+                        onResult = onResult@{ input ->
+                            if (input == null || machine == null) return@onResult
+                            val target = RepositoryClone.parse(input)
+                            if (target == null) {
+                                alert = Alert(strings.error, strings.cloneInvalid, listOf(AlertButton(strings.ok)))
+                                return@onResult
+                            }
+                            val ops = graph.account.value?.machineOps ?: return@onResult
+                            cloning = strings.cloning.format(target.name)
+                            scope.launch {
+                                val result = ops.bash(machine.id, RepositoryClone.command(target), "/", RepositoryClone.TIMEOUT_MS)
+                                cloning = null
+                                val path = RepositoryClone.checkoutPath(result, target)
+                                if (path != null) {
+                                    newSession.selectPath(path)
+                                } else {
+                                    alert = Alert(strings.cloneFailed, RepositoryClone.failure(result), listOf(AlertButton(strings.ok)))
+                                }
+                            }
+                        },
+                    )
+                } else if (page == NewSessionPage.Project && key == CUSTOM_PROJECT_PATH_KEY) {
                     prompting = Prompt(
                         title = strings.customPath,
                         placeholder = strings.customPathPlaceholder,
@@ -223,6 +262,7 @@ fun rememberNewSessionDock(
             })
         }
         prompting?.let { PromptModal(it, onDismiss = { prompting = null }) }
+        cloning?.let { text -> HappyAlert(Alert(text, null, emptyList(), cancelable = false), onDismiss = {}) }
         confirming?.let { (directory, answer) ->
             // A dismissal that pressed no button is a no.
             DisposableEffect(answer) { onDispose { answer.complete(false) } }

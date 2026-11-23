@@ -200,4 +200,10 @@
     <string name="shortcut_new_task_long">開始新任務</string>
     <string name="assist_draft_title">助理起草的內容</string>
     <string name="assist_draft_message">有助理在此工作階段的輸入框中放入了草稿。傳送前請檢查並編輯；尚未傳送任何內容。</string>
+    <string name="clone_repository">複製儲存庫</string>
+    <string name="clone_repository_message">將 git 儲存庫取得到這台電腦並在其中啟動工作階段。私人儲存庫需要電腦上有 git 存取權限（雲端主機上為 GITHUB_TOKEN）。</string>
+    <string name="clone_repository_invalid">請輸入 https://、ssh:// 或 git@ 儲存庫網址。</string>
+    <string name="clone_repository_cloning">正在複製 %1$s…</string>
+    <string name="clone_repository_failed">無法複製儲存庫</string>
+    <string name="cloud_host_label">雲端</string>
 </resources>

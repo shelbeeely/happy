@@ -200,4 +200,10 @@
     <string name="shortcut_new_task_long">Começar uma nova tarefa</string>
     <string name="assist_draft_title">Rascunho de um assistente</string>
     <string name="assist_draft_message">Um assistente colocou um rascunho no editor desta sessão. Revise e edite antes de enviar; nada foi enviado.</string>
+    <string name="clone_repository">Clonar repositório</string>
+    <string name="clone_repository_message">Baixa um repositório git neste computador e inicia a sessão nele. Repositórios privados precisam de acesso git no computador (num host na nuvem, GITHUB_TOKEN).</string>
+    <string name="clone_repository_invalid">Digite uma URL de repositório https://, ssh:// ou git@.</string>
+    <string name="clone_repository_cloning">Clonando %1$s…</string>
+    <string name="clone_repository_failed">Não foi possível clonar o repositório</string>
+    <string name="cloud_host_label">Nuvem</string>
 </resources>

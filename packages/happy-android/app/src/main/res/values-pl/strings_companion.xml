@@ -200,4 +200,10 @@
     <string name="shortcut_new_task_long">Rozpocznij nowe zadanie</string>
     <string name="assist_draft_title">Szkic od asystenta</string>
     <string name="assist_draft_message">Asystent umieścił szkic w edytorze tej sesji. Sprawdź go i popraw przed wysłaniem; nic nie zostało wysłane.</string>
+    <string name="clone_repository">Sklonuj repozytorium</string>
+    <string name="clone_repository_message">Pobiera repozytorium git na ten komputer i uruchamia w nim sesję. Prywatne repozytoria wymagają dostępu git na komputerze (na hoście w chmurze: GITHUB_TOKEN).</string>
+    <string name="clone_repository_invalid">Podaj adres repozytorium https://, ssh:// lub git@.</string>
+    <string name="clone_repository_cloning">Klonowanie %1$s…</string>
+    <string name="clone_repository_failed">Nie udało się sklonować repozytorium</string>
+    <string name="cloud_host_label">Chmura</string>
 </resources>

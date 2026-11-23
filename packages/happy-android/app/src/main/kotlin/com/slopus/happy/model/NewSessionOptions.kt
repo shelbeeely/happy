@@ -8,6 +8,7 @@ import com.slopus.happy.model.settings.ModeOption
 import com.slopus.happy.model.settings.ModeOptions
 import com.slopus.happy.model.settings.Versions
 import com.slopus.happy.inference.InferenceCapability
+import com.slopus.happy.assist.isCloudHost
 import com.slopus.happy.inference.InferenceSettings
 
 // What the new-session composer offers for a draft, and how a pick changes
@@ -58,9 +59,13 @@ class NewSessionLabels(
     val lastSeen: (activeAt: Long) -> String = { "" },
     /** An OpenRouter profile on a computer whose Happy CLI can't apply one. */
     val inferenceUnsupported: String = "Update Happy CLI on this computer to use OpenRouter",
+    val cloneRepository: String = "Clone repository",
+    /** The label of an always-on cloud host. */
+    val cloud: String = "Cloud",
 )
 
 const val CUSTOM_PROJECT_PATH_KEY = "__custom_project_path__"
+const val CLONE_REPOSITORY_KEY = "__clone_repository__"
 
 /** modelModeOptions.ts `modeSupportedByCli`: an untagged mode, or an unknown CLI, goes everywhere. */
 fun modeSupportedByCli(mode: ModeOption, cliVersion: String?): Boolean {
@@ -252,7 +257,16 @@ data class NewSessionOptions(
         NewSessionPage.Machine -> listOf(PickerSection("machine", titles(page), machines)) to resolvedMachineId
         NewSessionPage.Project -> listOf(
             PickerSection("projects", labels.projects, projects),
-            PickerSection("custom", null, listOf(PickerOption(CUSTOM_PROJECT_PATH_KEY, labels.enterCustomPath, action = true))),
+            PickerSection(
+                "custom",
+                null,
+                listOfNotNull(
+                    PickerOption(CUSTOM_PROJECT_PATH_KEY, labels.enterCustomPath, action = true),
+                    // Fetch a repository onto the computer (a cloud host starts empty).
+                    PickerOption(CLONE_REPOSITORY_KEY, labels.cloneRepository, action = true)
+                        .takeIf { resolvedAgent != AgentType.Rig && choice?.happyMachine?.isOnline == true },
+                ),
+            ),
         ) to project?.key
         NewSessionPage.Worktree -> listOf(PickerSection("worktree", titles(page), worktrees)) to worktreeSelection
         NewSessionPage.Agent -> listOf(PickerSection("agent", titles(page), agents)) to agent.key
@@ -285,7 +299,8 @@ fun resolveNewSessionOptions(
     val choices = collectMachineChoices(machines)
     val choice = findMachineChoice(choices, draft.selectedMachineId)
     val machineOptions = choices.sortedByDescending { it.online }.map {
-        PickerOption(it.id, it.name, if (it.online) labels.online else labels.lastSeen(it.activeAt))
+        val presence = if (it.online) labels.online else labels.lastSeen(it.activeAt)
+        PickerOption(it.id, it.name, if (it.happyMachine?.metadata.isCloudHost) "${labels.cloud} · $presence" else presence)
     }
     val currentMachine = resolvePickerOption(machineOptions, listOf(choice?.id))
     val resolvedMachineId = resolveHomeDockMachineSelection(choice?.id ?: draft.selectedMachineId, machineOptions.map { it.key })
