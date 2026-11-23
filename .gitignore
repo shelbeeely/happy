@@ -69,3 +69,6 @@ happy-workspaces/
 
 .context/
 .happy-tmp/
+
+# Node.js module compile cache (NODE_COMPILE_CACHE)
+node-compile-cache/
