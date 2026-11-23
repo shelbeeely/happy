@@ -15,6 +15,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { brotliDecompressSync, gunzipSync, inflateSync } from 'node:zlib';
 import type { AddressInfo } from 'node:net';
 import type { OpenRouterServerTool } from '@slopus/happy-wire';
 import { OPENROUTER_ANTHROPIC_BASE_URL, serverToolEntries } from './openrouter';
@@ -82,6 +83,23 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
         chunks.push(chunk as Buffer);
     }
     return Buffer.concat(chunks);
+}
+
+/** Decompresses a request body sent with Content-Encoding gzip, deflate or br. */
+export function decodeBody(body: Buffer, encoding: string): Buffer {
+    switch (encoding) {
+        case 'gzip':
+        case 'x-gzip':
+            return gunzipSync(body);
+        case 'deflate':
+            return inflateSync(body);
+        case 'br':
+            return brotliDecompressSync(body);
+        case 'identity':
+            return body;
+        default:
+            throw new Error(`unsupported content-encoding ${encoding}`);
+    }
 }
 
 /** Append server tools to a Messages body, skipping ones already present. */
@@ -190,11 +208,16 @@ export async function startInferenceRelay(options: InferenceRelayOptions): Promi
         }
 
         let body = await readBody(req);
+        // Claude Code may compress request bodies; the relay forwards them
+        // plain so it can add server tools, and drops the encoding header.
+        const encoding = String(req.headers['content-encoding'] ?? '').toLowerCase();
+        if (isMessages && encoding) body = decodeBody(body, encoding);
         if (isMessages) body = withServerTools(body, options.serverTools);
 
         const headers: Record<string, string> = {};
         for (const [name, value] of Object.entries(req.headers)) {
             if (HOP_HEADERS.has(name) || value === undefined) continue;
+            if (isMessages && name === 'content-encoding') continue;
             headers[name] = Array.isArray(value) ? value.join(', ') : value;
         }
         headers.authorization = `Bearer ${options.apiKey}`;

@@ -34,6 +34,23 @@ import { ensureLocalProxyBypass } from '@/claude/utils/proxyBypass';
 
 export const INFERENCE_CONFIG_ENV = 'HAPPY_INFERENCE_CONFIG';
 export const INFERENCE_KEY_ENV = 'HAPPY_INFERENCE_KEY';
+/**
+ * Integration tests only: a loopback stand-in for OpenRouter. Anything that
+ * is not http://127.0.0.1 or http://localhost is ignored, so this can never
+ * send the key to another host.
+ */
+export const INFERENCE_UPSTREAM_ENV = 'HAPPY_INFERENCE_TEST_UPSTREAM';
+
+function loopbackUpstream(value: string | undefined): string | undefined {
+    if (!value) return undefined;
+    try {
+        const url = new URL(value);
+        return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost') ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 /** Usage and spend carried over when the daemon resumes a session. */
 export const INFERENCE_PRIOR_ENV = 'HAPPY_INFERENCE_PRIOR';
 
@@ -185,6 +202,7 @@ export async function activateSessionInference(env: NodeJS.ProcessEnv = process.
     try {
         relay = await startInferenceRelay({
             apiKey,
+            upstream: loopbackUpstream(env[INFERENCE_UPSTREAM_ENV]),
             serverTools: config.serverTools,
             budgetUsd: config.budgetUsd,
             initialSpentUsd: ack.spentUsd,

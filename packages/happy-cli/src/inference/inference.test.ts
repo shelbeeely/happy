@@ -19,7 +19,8 @@ import {
     parseOpenRouterModels,
     testOpenRouterConnection,
 } from './openrouter';
-import { startInferenceRelay, UsageCollector, withServerTools, type RelayUsage } from './relay';
+import { decodeBody, startInferenceRelay, UsageCollector, withServerTools, type RelayUsage } from './relay';
+import { gzipSync } from 'node:zlib';
 import { prepareResumeInference, prepareSpawnInference } from './daemonInference';
 import { activateSessionInference, INFERENCE_CONFIG_ENV, INFERENCE_KEY_ENV, INFERENCE_PRIOR_ENV } from './sessionInference';
 
@@ -192,6 +193,12 @@ describe('usage extraction', () => {
         const collector = new UsageCollector(false);
         collector.feed('{"error":"x"}');
         expect(collector.finish()).toBeUndefined();
+    });
+
+    it('decodes compressed request bodies', () => {
+        const plain = Buffer.from('{"tools":[]}');
+        expect(decodeBody(gzipSync(plain), 'gzip').toString()).toBe(plain.toString());
+        expect(() => decodeBody(plain, 'zstd')).toThrow();
     });
 
     it('appends server tools without duplicating', () => {
