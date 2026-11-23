@@ -17,6 +17,14 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import com.slopus.happy.inference.ConnectionProblem
+import com.slopus.happy.inference.ConnectionTest
+import com.slopus.happy.inference.HostCredentials
+import com.slopus.happy.inference.InferenceProfile
+import com.slopus.happy.inference.StoreCredentialResult
+import com.slopus.happy.inference.isMissingMethod
 
 /**
  * Machine operations (ops.ts): spawning, resuming and stopping sessions,
@@ -105,6 +113,52 @@ class MachineOps internal constructor(
         throw e
     } catch (e: Exception) {
         OpResult(false, e.message ?: "Failed to stop session")
+    }
+
+    /** Which credential references the computer can resolve (values never leave it). */
+    suspend fun inferenceStatus(machineId: String): HostCredentials? = try {
+        HostCredentials.from(rpc.machineRpc(machineId, "inference-status", JsonObject(emptyMap())))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Checks the key, model and server tools from the computer itself. */
+    suspend fun inferenceTest(machineId: String, profile: InferenceProfile): ConnectionTest = try {
+        ConnectionTest.from(rpc.machineRpc(machineId, "inference-test", buildJsonObject {
+            put("provider", InferenceProfile.PROVIDER_OPENROUTER)
+            put("credentialRef", profile.credentialRef)
+            put("model", profile.effectiveModel)
+            if (profile.serverTools.isNotEmpty()) put("serverTools", JsonArray(profile.serverTools.map { JsonPrimitive(it.wire) }))
+        }))
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        ConnectionTest.Failed(if (isMissingMethod(e.message)) ConnectionProblem.HostOutdated else ConnectionProblem.HostUnreachable, null)
+    }
+
+    /**
+     * Sends an OpenRouter key to the computer, end-to-end encrypted, to be
+     * stored there (`happy:openrouter`). The phone keeps no copy.
+     */
+    suspend fun storeInferenceCredential(machineId: String, apiKey: String): StoreCredentialResult = try {
+        val answer = rpc.machineRpc(machineId, "inference-store-credential", buildJsonObject {
+            put("provider", InferenceProfile.PROVIDER_OPENROUTER)
+            put("apiKey", apiKey)
+        }) as? JsonObject
+        if ((answer?.get("ok") as? JsonPrimitive)?.booleanOrNull == true) {
+            StoreCredentialResult.Stored
+        } else {
+            StoreCredentialResult.Failed(
+                if (answer == null) ConnectionProblem.HostOutdated else ConnectionProblem.InvalidRequest,
+                (answer?.get("message") as? JsonPrimitive)?.contentOrNull,
+            )
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        StoreCredentialResult.Failed(if (isMissingMethod(e.message)) ConnectionProblem.HostOutdated else ConnectionProblem.HostUnreachable, null)
     }
 
     /** ops.ts `machineStopDaemon`: throws if the daemon could not be asked. */
@@ -357,6 +411,7 @@ class MachineOps internal constructor(
                     putIfNotNull("parentSessionId", o.parentSessionId)
                     putIfNotNull("forkedFromMessageId", o.forkedFromMessageId)
                     putIfNotNull("isSideChat", o.isSideChat)
+                    o.inference?.let { put("inference", it) }
                 }
             }
         }

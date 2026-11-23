@@ -7,6 +7,8 @@ import com.slopus.happy.model.settings.AgentDefaults
 import com.slopus.happy.model.settings.ModeOption
 import com.slopus.happy.model.settings.ModeOptions
 import com.slopus.happy.model.settings.Versions
+import com.slopus.happy.inference.InferenceCapability
+import com.slopus.happy.inference.InferenceSettings
 
 // What the new-session composer offers for a draft, and how a pick changes
 // the draft: HomeDock.tsx's derivations and homeDockInteraction.ts.
@@ -54,6 +56,8 @@ class NewSessionLabels(
     val online: String = "online",
     val notSupportedBy: (harness: String) -> String = { "Not supported by $it" },
     val lastSeen: (activeAt: Long) -> String = { "" },
+    /** An OpenRouter profile on a computer whose Happy CLI can't apply one. */
+    val inferenceUnsupported: String = "Update Happy CLI on this computer to use OpenRouter",
 )
 
 const val CUSTOM_PROJECT_PATH_KEY = "__custom_project_path__"
@@ -78,6 +82,35 @@ fun resolvePickerOption(options: List<PickerOption>, preferred: List<String?>): 
     preferred.firstNotNullOfOrNull { key -> key?.let { wanted -> options.find { it.key == wanted } } } ?: options.firstOrNull()
 
 private fun ModeOption.toPicker() = PickerOption(key, name, description)
+
+/**
+ * Claude Code's OpenRouter profiles as model rows (`openrouter:<id>`). A
+ * computer that doesn't advertise the capability gets them disabled, with
+ * why: it would ignore the profile and use its own configuration.
+ */
+internal fun openRouterSection(
+    agent: AgentType,
+    inference: InferenceSettings,
+    capability: InferenceCapability?,
+    labels: NewSessionLabels,
+): List<PickerSection> {
+    if (agent != AgentType.Claude || inference.profiles.isEmpty()) return emptyList()
+    val supported = capability?.openRouter == true
+    return listOf(
+        PickerSection(
+            "__openrouter__",
+            "OpenRouter",
+            inference.profiles.sortedBy { it.name.lowercase() }.map { profile ->
+                PickerOption(
+                    key = profile.modelKey,
+                    name = profile.name,
+                    description = if (supported) profile.effectiveModel else labels.inferenceUnsupported,
+                    disabled = !supported,
+                )
+            },
+        ),
+    )
+}
 
 /** The defaults an agent starts with on this computer: Happy Agent's catalog, else the user's and the code's. */
 private fun agentDefaults(agent: AgentType, rig: RigSessionCreation?, overrides: AgentDefaultOverrides?, cliVersion: String?): AgentDefaultConfig =
@@ -245,6 +278,8 @@ fun resolveNewSessionOptions(
     projectName: (String) -> String? = { null },
     kind: ComposeKind = ComposeKind.Session,
     machinesSynced: Boolean = true,
+    /** OpenRouter profiles, offered with Claude Code's models. */
+    inference: InferenceSettings = InferenceSettings(),
 ): NewSessionOptions {
     // A person picks a computer, not a daemon: the Happy CLI and Happy Agent pair is offered once.
     val choices = collectMachineChoices(machines)
@@ -338,7 +373,8 @@ fun resolveNewSessionOptions(
     } else {
         val supported = ModeOptions.filterModelModesForCli(ModeOptions.modelModes(agentType.wire), cliVersion, defaults.modelMode)
         val models = ModeOptions.includeConfiguredModel(agentType.wire, supported, defaults.modelMode)
-        listOf(PickerSection("__models__", null, models.map { it.toPicker() }))
+        listOf(PickerSection("__models__", null, models.map { it.toPicker() })) +
+            openRouterSection(agentType, inference, InferenceCapability.from(happyMachine?.metadata?.raw), labels)
     }
     val modelOptions = modelSections.flatMap { it.options }
     // The code default last: when the saved and configured modes were filtered out for an old CLI.

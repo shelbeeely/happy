@@ -33,6 +33,7 @@ object SettingsTags {
     const val LANGUAGE = "settings.row.language"
     const val VOICE = "settings.row.voice"
     const val AGENTS = "settings.row.agents"
+    const val PROVIDERS = "settings.row.providers"
     const val SCAN_TERMINAL = "settings.row.scanTerminal"
     const val ENTER_TERMINAL = "settings.row.enterTerminal"
     const val VERSION = "settings.version"
@@ -102,6 +103,8 @@ class HappySettingsActions(
     val onLanguage: () -> Unit = {},
     val onVoice: () -> Unit = {},
     val onAgents: () -> Unit = {},
+    /** AI providers: OpenRouter profiles and on-device AI. */
+    val onProviders: () -> Unit = {},
     val onDataStorage: () -> Unit = {},
     /** Privacy: this phone's Analytics switch. */
     val onPrivacy: () -> Unit = {},
@@ -159,6 +162,12 @@ fun happySettingsSections(actions: HappySettingsActions, connectingTerminal: Boo
                 title = stringResource(R.string.settings_agents),
                 icon = { SettingsTile(Ionicon.OptionsOutline, SettingsTiles.teal) },
                 onClick = actions.onAgents,
+            ),
+            SettingsEntry(
+                id = SettingsTags.PROVIDERS,
+                title = stringResource(R.string.inference_providers_title),
+                icon = { SettingsTile(Ionicon.SparklesOutline, SettingsTiles.indigo) },
+                onClick = actions.onProviders,
             ),
             SettingsEntry(
                 id = DataStorageTags.ROW,

@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.androidx.baselineprofile)
+    alias(libs.plugins.ksp)
 }
 
 // One application ID per build type, preserving the existing store identities:
@@ -565,6 +566,10 @@ dependencies {
     // Animated covers in Feed posts (AnimatedImageDecoder, API 28+), asked for per request.
     implementation(libs.coil.gif)
     implementation(libs.play.billing)
+    // Local AI (Catch me up, Improve instruction, Explain, Draft from screenshot).
+    implementation(libs.mlkit.genai.prompt)
+    implementation(libs.androidx.appfunctions)
+    ksp(libs.androidx.appfunctions.compiler)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

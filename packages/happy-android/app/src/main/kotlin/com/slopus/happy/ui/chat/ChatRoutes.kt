@@ -198,8 +198,8 @@ private fun ChatRoute(
     // A chat being started shows the picks it will start with (newSessionLikeSession): its anchor's.
     val modesMetadata = metadata ?: anchor?.metadata
     val modesMirror = if (metadata == null && anchor != null) anchorMirror ?: mirror else mirror
-    val modes = remember(drafting, draftOptions, modesMetadata, modesMirror, settings.agentDefaultOverrides) {
-        if (drafting) composeChatModes(draftOptions) else ComposerModeResolver.resolve(modesMetadata, modesMirror, settings.agentDefaultOverrides, resources::getString)
+    val modes = remember(drafting, draftOptions, modesMetadata, modesMirror, settings.agentDefaultOverrides, settings.inference) {
+        if (drafting) composeChatModes(draftOptions) else ComposerModeResolver.resolve(modesMetadata, modesMirror, settings.agentDefaultOverrides, resources::getString, settings.inference)
     }
     val latestMirror by rememberUpdatedState(mirror)
     val local by graph.localSettings.values.collectAsStateWithLifecycle()
@@ -240,11 +240,35 @@ private fun ChatRoute(
     }
     val latestImages by rememberUpdatedState(images)
     val notices = remember { mutableStateListOf<Alert>() }
+    // A share or an assistant's drafted task waiting for this session joins the draft (never sent),
+    // once the session is loaded and its composer knows whether it takes pictures.
+    val sessionLoaded = state.session != null
+    val shareContext = androidx.compose.ui.platform.LocalContext.current
+    val noPictures = stringResource(R.string.share_no_pictures)
+    val assistantTitle = stringResource(R.string.assist_draft_title)
+    val assistantMessage = stringResource(R.string.assist_draft_message)
+    LaunchedEffect(sessionId, sessionLoaded, drafting) {
+        if (!sessionLoaded || drafting) return@LaunchedEffect
+        val waiting = withContext(Dispatchers.IO) { graph.inbox.take(sessionId) } ?: return@LaunchedEffect
+        waiting.text?.let { draft.set(com.slopus.happy.ui.localai.joinDraft(draft.text, it)) }
+        if (waiting.source == com.slopus.happy.assist.CompanionInbox.Source.Assistant) {
+            notices += Alert(assistantTitle, assistantMessage, listOf(AlertButton(resources.getString(R.string.common_ok))))
+        }
+        if (waiting.images.isNotEmpty()) {
+            val picker = latestImages
+            if (picker != null) picker.receive(waiting.images.map(android.net.Uri::fromFile)) else failure = noPictures
+        }
+    }
     // Not lifecycle-bound: the change to the background is the one that matters.
     val foreground by graph.isForeground.collectAsState()
 
     fun report(e: Exception) {
         failure = e.message?.takeIf { it.isNotBlank() } ?: notSent
+    }
+    // The session on the launcher's long-press menu (recent sessions).
+    val shortcutLabel = com.slopus.happy.assist.SessionShortcuts.label(state.session?.metadata, sessionId.take(8))
+    LaunchedEffect(sessionId, sessionLoaded, shortcutLabel) {
+        if (sessionLoaded && !drafting) withContext(Dispatchers.IO) { com.slopus.happy.assist.SessionShortcuts.pushRecent(shareContext, sessionId, shortcutLabel) }
     }
 
     val latestCompose by rememberUpdatedState(onCompose)
@@ -371,6 +395,28 @@ private fun ChatRoute(
         } else {
             slots.chat
         }
+        // The session's provider, spend and the on-device actions, over the composer.
+        val usageFlow = remember(account) { account?.presence?.usage ?: kotlinx.coroutines.flow.MutableStateFlow(emptyMap()) }
+        val usages by usageFlow.collectAsStateWithLifecycle()
+        val companionMetadata = state.session?.metadata?.raw
+        val companionAck = remember(companionMetadata) { com.slopus.happy.inference.InferenceAck.from(companionMetadata) }
+        val warnAt = companionAck?.profileName?.let { name -> settings.inference.profiles.find { it.name == name }?.warnAtUsd }
+        val spend = remember(companionAck, usages[sessionId], warnAt) { com.slopus.happy.inference.SessionSpend.of(companionAck, usages[sessionId], warnAt) }
+        val companionMessages = remember(state.snapshot.rows) { state.snapshot.rows.map { it.message } }
+        val companion: (@Composable () -> Unit)? = if (state.session != null && !composing) {
+            {
+                com.slopus.happy.ui.localai.SessionCompanion(
+                    graph = graph,
+                    metadata = companionMetadata,
+                    messages = companionMessages,
+                    spend = spend,
+                    draft = draft.text,
+                    onDraftChange = draft::set,
+                )
+            }
+        } else {
+            null
+        }
         ChatScreen(
             state = state,
             link = link,
@@ -386,7 +432,7 @@ private fun ChatRoute(
             showCliWarning = showCliWarning,
             slots = chatSlots,
             goalBar = slots.goalBar,
-            activityBar = slots.activityBar,
+            activityBar = companionBar(slots.activityBar, companion),
             inactiveHint = state.session?.let { session ->
                 // happy-app: a disconnected Happy CLI session; a Happy Agent session has its own lifecycle.
                 if (state.sessionState != SessionState.Disconnected || session.isRig) return@let null
@@ -454,5 +500,22 @@ private fun rememberMachine(graph: AppGraph, machineId: String?): State<Machine?
     val versions by graph.store.versions.collectAsStateWithLifecycle()
     return produceState<Machine?>(null, machineId, versions.machines, versions.machineActivity) {
         value = machineId?.let { id -> withContext(Dispatchers.IO) { graph.store.machine(id)?.let(Machine::from) } }
+    }
+}
+
+/** The checkout's own activity bar (if any) above the session companion. */
+private fun companionBar(
+    activity: (@Composable () -> Unit)?,
+    companion: (@Composable () -> Unit)?,
+): (@Composable () -> Unit)? = when {
+    activity == null -> companion
+    companion == null -> activity
+    else -> {
+        {
+            androidx.compose.foundation.layout.Column {
+                activity()
+                companion()
+            }
+        }
     }
 }

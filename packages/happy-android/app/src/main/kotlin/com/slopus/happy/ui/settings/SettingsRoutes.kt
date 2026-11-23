@@ -1,6 +1,8 @@
 package com.slopus.happy.ui.settings
 
 import com.slopus.happy.ui.page
+import com.slopus.happy.ui.inference.providerRoutes
+import com.slopus.happy.ui.localai.localAiRoutes
 import android.content.ActivityNotFoundException
 import android.os.Build
 import android.provider.Settings
@@ -91,6 +93,8 @@ fun NavGraphBuilder.settingsRoutes(graph: AppGraph, nav: NavHostController) {
     page<BackupRoute> { entry -> ProvideRowReveal(entry.toRoute<BackupRoute>().reveal) { Backup(graph, nav) } }
     page<AppearanceRoute> { Appearance(graph, nav) }
     page<AgentsRoute> { Agents(graph, nav) }
+    providerRoutes(graph, nav)
+    localAiRoutes(graph, nav)
     page<ChangelogRoute> {
         val resources = LocalResources.current
         val changelog = remember(resources) { Changelog.bundled(resources) }
@@ -155,7 +159,7 @@ private fun Agents(graph: AppGraph, nav: NavHostController) {
  * store changes, with live presence over the stored online state.
  */
 @Composable
-private fun rememberMachineChoices(graph: AppGraph): State<List<MachineChoice>> {
+internal fun rememberMachineChoices(graph: AppGraph): State<List<MachineChoice>> {
     val changes by graph.store.changes.collectAsStateWithLifecycle()
     val account by graph.account.collectAsStateWithLifecycle()
     val presenceFlow = remember(account) { account?.presence?.machines ?: MutableStateFlow(emptyMap()) }
@@ -344,6 +348,7 @@ private fun SettingsIndex(graph: AppGraph, nav: NavHostController, scroll: Scrol
                 onLanguage = { nav.navigate(LanguageRoute()) },
                 onVoice = { nav.navigate(VoiceSettingsRoute()) },
                 onAgents = { nav.navigate(AgentsRoute) },
+                onProviders = { nav.navigate(com.slopus.happy.ui.inference.ProvidersRoute) },
                 onDataStorage = { nav.navigate(LegacyDataStorageRoute) },
                 onPrivacy = { nav.navigate(PrivacyRoute) },
                 onScanTerminal = connect::scan,

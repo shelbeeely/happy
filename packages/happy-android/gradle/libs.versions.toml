@@ -1,4 +1,9 @@
 [versions]
+# On-device Gemini Nano through AICore (ML Kit GenAI Prompt API, beta).
+mlkit-genai-prompt = "1.0.0-beta5"
+# AppFunctions (Android 16+): assistants discover sessions and draft tasks; nothing is sent without review.
+appfunctions = "1.0.0"
+ksp = "2.3.14"
 agp = "9.4.1"
 kotlin = "2.4.21"
 
@@ -47,6 +52,9 @@ profileinstaller = "1.4.1"
 recyclerview = "1.4.0"
 
 [libraries]
+androidx-appfunctions = { module = "androidx.appfunctions:appfunctions", version.ref = "appfunctions" }
+androidx-appfunctions-compiler = { module = "androidx.appfunctions:appfunctions-compiler", version.ref = "appfunctions" }
+mlkit-genai-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkit-genai-prompt" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
@@ -117,3 +125,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

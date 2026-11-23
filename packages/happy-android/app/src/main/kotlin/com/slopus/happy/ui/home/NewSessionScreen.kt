@@ -86,6 +86,7 @@ fun newSessionLabels(resources: Resources, now: () -> Long = System::currentTime
     online = resources.getString(R.string.status_online),
     notSupportedBy = { resources.getString(R.string.home_dock_not_supported_by, it) },
     lastSeen = { resources.getString(R.string.status_last_seen, formatLastSeen(resources, it, now())) },
+    inferenceUnsupported = resources.getString(R.string.inference_cli_update_needed),
 )
 
 /** A composer bound to the draft and the starter, with the dialogs its start may raise. */

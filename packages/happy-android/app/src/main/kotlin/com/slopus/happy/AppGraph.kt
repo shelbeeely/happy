@@ -745,6 +745,27 @@ class AppGraph(
 
     /** Whether the app is in the foreground (one of its activities started). */
     val isForeground: StateFlow<Boolean> = foreground.asStateFlow()
+
+    /** OpenRouter's public model list, cached on this phone (metadata only, no key). */
+    val openRouterCatalog by lazy {
+        com.slopus.happy.inference.OpenRouterCatalog(okHttp, java.io.File(appContext.cacheDir, "openrouter-models.json"))
+    }
+
+    /**
+     * The on-device assistant (Gemini Nano through AICore). Foreground-only:
+     * it follows [isForeground] and never runs from a service.
+     */
+    val localAi by lazy {
+        com.slopus.happy.localai.LocalAi(com.slopus.happy.localai.MlKitLocalModel(), isForeground, scope)
+    }
+
+    /** Shares and assistant drafts waiting for a session's chat (on disk, no backup). */
+    val inbox by lazy { com.slopus.happy.assist.CompanionInbox(java.io.File(appContext.noBackupFilesDir, "companion-inbox")) }
+
+    /** On-device push-to-talk for instruction drafts. */
+    val dictation by lazy {
+        com.slopus.happy.localai.Dictation(appContext, androidx.core.content.ContextCompat.getMainExecutor(appContext))
+    }
     private var started = 0
 
     /**
@@ -924,6 +945,9 @@ class AppGraph(
      * the open account, its sync and this phone's preferences in place.
      */
     fun logout(accountIdToRemove: String? = null): Job = scope.launch {
+        // No session names or waiting shares outlive the sign-out.
+        com.slopus.happy.assist.SessionShortcuts.clear(appContext)
+        java.io.File(appContext.noBackupFilesDir, "companion-inbox").deleteRecursively()
         accountSelectionLock.withLock {
             accountLock.withLock accountRemoval@ {
                 val leaving = auth.state.value as? AuthState.SignedIn

@@ -2,6 +2,8 @@ package com.slopus.happy.chat
 
 import androidx.compose.runtime.Immutable
 import com.slopus.happy.model.SessionMetadata
+import com.slopus.happy.inference.InferenceAck
+import com.slopus.happy.inference.InferenceSettings
 import com.slopus.happy.model.isRig
 import com.slopus.happy.model.isRigV1
 import com.slopus.happy.model.qualifyRigModelKey
@@ -60,12 +62,19 @@ object ComposerModeResolver {
         mirror: ComposerMirror,
         overrides: AgentDefaultOverrides?,
         translate: (Int) -> String,
+        /** The account's OpenRouter favourites, offered in a session its computer runs on OpenRouter. */
+        inference: InferenceSettings? = null,
     ): ComposerModes {
         val flavor = metadata?.flavor
         val rig = metadata.isRig()
         val defaults = AgentDefaults.resolve(overrides, flavor, metadata?.version)
         val sessionModel = if (rig) mirror.modelMode else AgentDefaults.retireModelMode(flavor, mirror.modelMode)
-        val models = ModeOptions.availableModels(flavor, metadata, translate, sessionModel ?: if (rig) null else defaults.modelMode)
+        val ack = if (rig) null else InferenceAck.from(metadata?.raw)
+        val models = if (ack != null) {
+            openRouterModelOptions(ack, sessionModel, inference)
+        } else {
+            ModeOptions.availableModels(flavor, metadata, translate, sessionModel ?: if (rig) null else defaults.modelMode)
+        }
         val modes = ModeOptions.availablePermissionModes(flavor, metadata, translate, mirror.permissionMode)
         val permission = ModeOptions.resolveCurrentOption(
             modes,
@@ -78,7 +87,11 @@ object ComposerModeResolver {
         val rigModelKey = metadata.rigSelectedModel()?.let { (provider, id) -> qualifyRigModelKey(provider, id) }
         val model = ModeOptions.resolveCurrentOption(
             models,
-            listOf(sessionModel, if (rig) rigModelKey else defaults.modelMode, if (rig) null else metadata?.currentModelCode),
+            if (ack != null) {
+                listOf(sessionModel, ack.requestedModel)
+            } else {
+                listOf(sessionModel, if (rig) rigModelKey else defaults.modelMode, if (rig) null else metadata?.currentModelCode)
+            },
         )
         val modelKey = model?.key ?: "default"
         val efforts = ModeOptions.effortLevelsForModel(flavor, modelKey, metadata)
@@ -97,6 +110,25 @@ object ComposerModeResolver {
             canChangeModel = metadata.rigModelSelectionEnabled(),
             canChangeEffort = metadata.rigReasoningSelectionEnabled(),
         )
+    }
+
+    /**
+     * A session on OpenRouter switches among OpenRouter slugs only: the
+     * provider is fixed when the computer launches the session, so the list
+     * is the slug it launched with, the session's own pick, the account's
+     * profiles and favourites. A pick applies from the next message, in the
+     * same conversation.
+     */
+    internal fun openRouterModelOptions(ack: InferenceAck, sessionModel: String?, inference: InferenceSettings?): List<ModeOption> {
+        val slugs = buildList {
+            add(ack.requestedModel)
+            sessionModel?.takeIf { '/' in it }?.let(::add)
+            inference?.profiles?.forEach { add(it.effectiveModel) }
+            inference?.favorites?.let(::addAll)
+        }.distinct()
+        return slugs.map { slug ->
+            ModeOption(key = slug, name = slug.substringAfter('/'), description = slug.substringBefore('/'), providerName = "OpenRouter")
+        }
     }
 
     // rig.ts getRigReasoningSelection, against the levels already resolved for the model.

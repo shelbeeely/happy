@@ -101,6 +101,12 @@ data class Settings(
     /** Missing values use code defaults and are not sent as agent metadata. */
     val agentDefaultOverrides: AgentDefaultOverrides = AgentDefaultOverrides(),
     val dismissedCLIWarnings: DismissedCliWarnings = DismissedCliWarnings(),
+    /**
+     * OpenRouter profiles and favourite models (Android's own key,
+     * `inferenceProfiles`). Read leniently: a bad entry is dropped, never a
+     * reason to reset the other settings.
+     */
+    val inference: com.slopus.happy.inference.InferenceSettings = com.slopus.happy.inference.InferenceSettings(),
     /** Keys this version doesn't know, as they came. */
     val unknown: JsonObject = EmptyJson,
 ) {
@@ -273,6 +279,11 @@ private val fields: List<Field> = listOf(
         "agentDefaultOverrides",
         { s, j -> s.copy(agentDefaultOverrides = AgentDefaultOverrides.parse(j)) },
         { it.agentDefaultOverrides.toJson() },
+    ),
+    Field(
+        com.slopus.happy.inference.InferenceSettings.SETTINGS_KEY,
+        { s, j -> s.copy(inference = com.slopus.happy.inference.InferenceSettings.parse(j)) },
+        { it.inference.toJson() },
     ),
     Field(
         "dismissedCLIWarnings",

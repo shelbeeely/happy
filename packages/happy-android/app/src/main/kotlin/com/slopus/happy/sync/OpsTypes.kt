@@ -126,6 +126,11 @@ data class SpawnSessionOptions(
     val forkedFromMessageId: String? = null,
     /** A hidden side chat of [parentSessionId]. */
     val isSideChat: Boolean? = null,
+    /**
+     * happy-wire `InferenceConfig` (an OpenRouter profile): provider, model and
+     * a credential reference the computer resolves. Never a key.
+     */
+    val inference: kotlinx.serialization.json.JsonObject? = null,
 )
 
 /** Claude fork / duplicate (`newClaudeSessionId`) and Codex fork / duplicate (`newCodexThreadId`). */

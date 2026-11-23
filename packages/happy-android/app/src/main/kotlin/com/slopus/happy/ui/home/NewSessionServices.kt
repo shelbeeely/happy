@@ -62,6 +62,16 @@ class NewSessionServices(
 
     val draft: StateFlow<NewSessionDraft> = drafts.draft
 
+    /**
+     * Adds text to the new-session draft's prompt (a share or an assistant's
+     * draft). It stays a draft: nothing starts until the person sends it.
+     */
+    fun appendToInput(text: String) {
+        val addition = text.trim()
+        if (addition.isEmpty()) return
+        drafts.change { it.copy(input = if (it.input.isBlank()) addition else it.input.trimEnd() + "\n\n" + addition) }
+    }
+
     private val botState = MutableStateFlow(BotDraft())
 
     /** useNewSessionDraft's bot fields, in memory: a restarted app offers a session. */
@@ -101,6 +111,7 @@ class NewSessionServices(
                     projectName = { id -> it.projects[id]?.name },
                     kind = kind,
                     machinesSynced = it.machinesSynced,
+                    inference = settings.inference,
                 ),
             )
         }

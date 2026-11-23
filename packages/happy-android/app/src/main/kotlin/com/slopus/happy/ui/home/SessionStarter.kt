@@ -1,5 +1,7 @@
 package com.slopus.happy.ui.home
 
+import com.slopus.happy.inference.InferenceCapability
+import com.slopus.happy.inference.InferenceProfile
 import androidx.annotation.StringRes
 import com.slopus.happy.R
 import com.slopus.happy.attachments.AttachmentNotice
@@ -74,6 +76,10 @@ enum class StartRefusal(val message: String, @StringRes val text: Int) {
     WorkspaceUnavailable("The selected Happy Agent workspace is no longer available.", R.string.home_start_workspace_unavailable),
     BotsUnsupported("Happy Agent on this computer cannot create bots yet. Update it and try again.", R.string.home_start_bots_unsupported),
     TasksUnsupported("Happy Agent on this computer cannot create tasks yet. Update it and try again.", R.string.compose_tasks_unsupported),
+    /** An OpenRouter profile was picked but the computer's Happy CLI can't apply one. */
+    InferenceUnsupported("Update Happy CLI on this computer to use OpenRouter", R.string.inference_cli_update_needed),
+    /** The picked OpenRouter profile was deleted. */
+    InferenceProfileMissing("This OpenRouter profile no longer exists. Pick a model again.", R.string.inference_profile_missing),
 }
 
 sealed interface StartResult {
@@ -294,7 +300,18 @@ class SessionStarter(
             // The code agents take the user's defaults over the code's.
             val defaults = AgentDefaults.resolve(settings().agentDefaultOverrides, agent.wire, machine.metadata?.happyCliVersion)
             val permission = if (agentChanged) defaults.permissionMode else draft.permissionMode ?: defaults.permissionMode
-            val model = if (agentChanged) defaults.modelMode else AgentDefaults.retireModelMode(agent.wire, draft.modelMode) ?: defaults.modelMode
+            val picked = if (agentChanged) defaults.modelMode else AgentDefaults.retireModelMode(agent.wire, draft.modelMode) ?: defaults.modelMode
+            // An OpenRouter profile: the computer applies it, and the session's
+            // model chip and messages carry the profile's OpenRouter slug.
+            val profile = if (agent == AgentType.Claude && picked.startsWith(InferenceProfile.MODEL_KEY_PREFIX)) {
+                settings().inference.profileForModelKey(picked) ?: return Prepared.Refused(StartRefusal.InferenceProfileMissing)
+            } else {
+                null
+            }
+            if (profile != null && InferenceCapability.from(machine.metadata?.raw)?.openRouter != true) {
+                return Prepared.Refused(StartRefusal.InferenceUnsupported)
+            }
+            val model = profile?.effectiveModel ?: picked.takeUnless { it.startsWith(InferenceProfile.MODEL_KEY_PREFIX) } ?: defaults.modelMode
             val effort = if (agentChanged) defaults.effortLevel else draft.effortLevel ?: defaults.effortLevel
             // Pinned as launched: a later change of defaults must not rewrite this session's mode.
             modes = mapOf(
@@ -310,6 +327,7 @@ class SessionStarter(
                 permissionMode = permission.takeIf { agent == AgentType.Codex || it != "default" },
                 modelMode = model.takeIf { it != "default" },
                 effortLevel = effort,
+                inference = profile?.toConfig(),
             )
         }
         val signature = listOf(
@@ -317,6 +335,7 @@ class SessionStarter(
             machine.id, agent.wire, if (task) "task" else draftProjectId?.let { "project:$it" } ?: selectedPath, worktree,
             options.modelMode ?: options.modelId, options.permissionMode, options.effortLevel ?: options.effort,
             bot?.let { "bot:${it.name}" },
+            options.inference?.toString(),
         ).joinToString("\u0000")
         return Prepared.Ready(
             machine = machine,
